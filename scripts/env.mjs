@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getPgPoolConfig } from "../src/lib/databaseUrl.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -41,10 +42,7 @@ export function getDatabaseUrl() {
 
 export function createPgPool(Pool, url = getDatabaseUrl()) {
   if (!url) throw new Error("DATABASE_URL no configurada");
-  return new Pool({
-    connectionString: url,
-    ssl: isLocalDatabase(url) ? false : { rejectUnauthorized: false },
-  });
+  return new Pool(getPgPoolConfig(url));
 }
 
 export function migrationsDir() {

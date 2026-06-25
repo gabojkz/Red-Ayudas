@@ -4,6 +4,7 @@ import {
   getDatabaseUrl,
   hasDatabase,
   isDirectSupabaseUrl,
+  connectionStringForPg,
 } from "../src/lib/databaseUrl.js";
 
 test("getDatabaseUrl uses DATABASE_URL for local dev", () => {
@@ -78,9 +79,18 @@ test("getDatabaseUrl builds from POSTGRES_* parts", () => {
   process.env.POSTGRES_DATABASE = "postgres";
   assert.match(
     getDatabaseUrl(),
-    /postgresql:\/\/postgres:secret@db\.example\.com:6543\/postgres\?sslmode=require/
+    /postgresql:\/\/postgres:secret@db\.example\.com:6543\/postgres$/
   );
   Object.assign(process.env, prev);
+});
+
+test("connectionStringForPg strips sslmode so Pool ssl config applies", () => {
+  const url =
+    "postgresql://postgres.aunvptctqfecwnqfwoja:secret@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require";
+  assert.equal(
+    connectionStringForPg(url),
+    "postgresql://postgres.aunvptctqfecwnqfwoja:secret@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+  );
 });
 
 test("hasDatabase is false without any URL", () => {

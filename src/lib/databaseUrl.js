@@ -15,6 +15,34 @@ function normalizeUrl(url) {
   return url.replace(/\/$/, "");
 }
 
+export function isLocalDatabase(url) {
+  return /localhost|127\.0\.0\.1|@postgres[:/]/i.test(url || "");
+}
+
+/** pg merges connection-string sslmode over Pool.ssl — strip it so rejectUnauthorized applies. */
+export function connectionStringForPg(url) {
+  if (!url || isLocalDatabase(url)) return url;
+  return url
+    .replace(/([?&])sslmode=[^&]*/gi, "$1")
+    .replace(/([?&])sslrootcert=[^&]*/gi, "$1")
+    .replace(/([?&])sslcert=[^&]*/gi, "$1")
+    .replace(/([?&])sslkey=[^&]*/gi, "$1")
+    .replace(/\?&/g, "?")
+    .replace(/[?&]$/g, "")
+    .replace(/\?$/g, "");
+}
+
+export function getPgPoolConfig(connectionString) {
+  const local = isLocalDatabase(connectionString);
+  return {
+    connectionString: connectionStringForPg(connectionString),
+    ssl: local ? false : { rejectUnauthorized: false },
+    max: process.env.VERCEL ? 1 : 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+  };
+}
+
 function buildFromPostgresParts() {
   const { POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_DATABASE } = process.env;
   if (!POSTGRES_USER || !POSTGRES_PASSWORD || !POSTGRES_HOST || !POSTGRES_DATABASE) {
@@ -22,7 +50,7 @@ function buildFromPostgresParts() {
   }
   const user = encodeURIComponent(POSTGRES_USER);
   const pass = encodeURIComponent(POSTGRES_PASSWORD);
-  return `postgresql://${user}:${pass}@${POSTGRES_HOST}/${POSTGRES_DATABASE}?sslmode=require`;
+  return `postgresql://${user}:${pass}@${POSTGRES_HOST}/${POSTGRES_DATABASE}`;
 }
 
 function collectCandidates() {
