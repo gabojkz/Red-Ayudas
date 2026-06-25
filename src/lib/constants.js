@@ -7,6 +7,7 @@ export const TYPES = {
   medicamentos: { label: "Medicamentos", color: "#E03B4B" },
   agua: { label: "Agua", color: "#2D8FD4" },
   alimentos: { label: "Alimentos", color: "#E8870E" },
+  escombros: { label: "Escombros", color: "#92400E" },
   rescate: { label: "Rescate", color: "#7C3AED" },
   refugio: { label: "Refugio", color: "#1F9E5E" },
   transporte: { label: "Transporte", color: "#6366F1" },
@@ -15,7 +16,7 @@ export const TYPES = {
 };
 
 export const OFFER_TYPES = [
-  "transporte", "voluntario", "agua", "alimentos",
+  "transporte", "voluntario", "escombros", "agua", "alimentos",
   "medicamentos", "refugio", "rescate", "otros",
 ];
 
@@ -23,7 +24,8 @@ export const TYPE_COMPAT = {
   medicamentos: ["medicamentos", "voluntario", "transporte"],
   agua: ["agua", "transporte"],
   alimentos: ["alimentos", "transporte"],
-  rescate: ["rescate", "voluntario", "transporte"],
+  escombros: ["escombros", "transporte", "voluntario"],
+  rescate: ["rescate", "voluntario", "transporte", "escombros"],
   refugio: ["refugio", "transporte", "voluntario"],
   otros: ["otros", "transporte", "voluntario"],
 };
@@ -57,7 +59,7 @@ export const ROLES = {
 export const PHASES = {
   rescate: {
     label: "Semana 1 · Rescate",
-    types: ["agua", "medicamentos", "rescate", "refugio"],
+    types: ["agua", "medicamentos", "rescate", "refugio", "escombros"],
   },
   estabilizacion: {
     label: "Semanas 2–8 · Estabilización",
@@ -100,6 +102,20 @@ export function timeAgoLabel(mins) {
   return `hace ${Math.floor(mins / 60)} h`;
 }
 
+function parseMeta(value) {
+  if (value == null) return {};
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === "object" && parsed && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 export function rowToNeed(row) {
   const mins = minutesAgo(row.created_at);
   return {
@@ -114,6 +130,7 @@ export function rowToNeed(row) {
     contact: row.contact,
     lat: Number(row.lat),
     lng: Number(row.lng),
+    meta: parseMeta(row.meta),
     mins,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

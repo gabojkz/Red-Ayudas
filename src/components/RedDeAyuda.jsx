@@ -2,10 +2,12 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
-  Pill, Droplet, Utensils, LifeBuoy, Home, Package, Truck, HeartHandshake,
+  Pill, Droplet, Utensils, LifeBuoy, Home, Package, Truck, HeartHandshake, HardHat,
   Plus, X, MapPin, Clock, Check, AlertTriangle, ChevronLeft, Loader2,
-  Link2, ArrowRight, Globe, Radio, Zap,
+  Link2, ArrowRight, Globe, Radio, Zap, Code2,
 } from "lucide-react";
+import Link from "next/link";
+import { ESCOMBROS_EQUIPO, escombrosMetaChips, toggleEquipo, parseEquipos } from "@/lib/escombros";
 import dynamic from "next/dynamic";
 import {
   TYPES, URGENCY, STATUS, KIND, CONN_STATUS, ROLES, OFFER_TYPES, timeAgoLabel,
@@ -25,8 +27,8 @@ import { flushQueue, createOfflineReport } from "@/lib/syncQueue";
 import OfflineBanner from "@/components/OfflineBanner";
 
 const TYPE_ICONS = {
-  medicamentos: Pill, agua: Droplet, alimentos: Utensils, rescate: LifeBuoy,
-  refugio: Home, transporte: Truck, voluntario: HeartHandshake, otros: Package,
+  medicamentos: Pill, agua: Droplet, alimentos: Utensils, escombros: HardHat,
+  rescate: LifeBuoy, refugio: Home, transporte: Truck, voluntario: HeartHandshake, otros: Package,
 };
 
 const LibreMap = dynamic(() => import("@/components/LibreMap"), {
@@ -257,6 +259,7 @@ export default function RedDeAyuda() {
           contact: draft.contact,
           lat: draft.lat,
           lng: draft.lng,
+          ...(draft.type === "escombros" && draft.meta ? { meta: draft.meta } : {}),
         }),
       });
       if (!res.ok) {
@@ -379,6 +382,9 @@ export default function RedDeAyuda() {
           <Stat n={stats.activeConns} label="conexiones" accent="#2563EB" />
           <Stat n={stats.delivered} label="entregados" accent="#6B7280" />
         </div>
+        <Link href="/docs/api" className="rda-dev-link" title="Feed público para desarrolladores">
+          <Code2 size={14} strokeWidth={2.4} /> Feed
+        </Link>
         <button className="rda-cta" onClick={startReport}>
           <Plus size={15} strokeWidth={2.6} /> Publicar
         </button>
@@ -623,6 +629,7 @@ function ItemCard({ item, selected, onClick, connections }) {
         <span className="rda-card-detail">{item.detail}</span>
         <span className="rda-card-meta">
           {item.kind === "need" && <Badge color={u.color}>{u.label}</Badge>}
+          {item.type === "escombros" && <MetaChips meta={item.meta} />}
           <span className="rda-zone"><MapPin size={10} /> {item.zone}</span>
           <span className="rda-time"><Clock size={10} /> {timeAgoLabel(item.mins)}</span>
         </span>
@@ -650,6 +657,9 @@ function DetailPanel({ item, needs, offers, connections, onClose, onConnect, onA
         <button type="button" className="rda-x" onClick={onClose}><X size={15} /></button>
       </div>
       <p className="rda-detail-body">{item.detail}</p>
+      {item.type === "escombros" && item.meta && (
+        <div className="rda-detail-meta-block"><MetaChips meta={item.meta} /></div>
+      )}
       <div className="rda-detail-contact"><b>Contacto:</b> {item.contact}</div>
       <MapLinks lat={item.lat} lng={item.lng} label={item.place} />
 
@@ -687,9 +697,74 @@ function DetailPanel({ item, needs, offers, connections, onClose, onConnect, onA
   );
 }
 
+function MetaChips({ meta }) {
+  const chips = escombrosMetaChips(meta);
+  if (!chips.length) return null;
+  return (
+    <span className="rda-meta-chips">
+      {chips.map((c) => (
+        <span key={c.id} className="rda-meta-chip">{c.label}</span>
+      ))}
+    </span>
+  );
+}
+
+function EscombrosFields({ draft, set }) {
+  const meta = draft.meta || {};
+  const setMeta = (k, v) => set("meta", { ...meta, [k]: v, equipo: undefined });
+  const equipos = parseEquipos(meta);
+  const isOffer = draft.kind === "offer";
+
+  return (
+    <div className="rda-escombros-fields">
+      <label className="rda-label">
+        Tipo de equipo o recurso <span className="rda-req">*</span>
+        <span className="rda-opt"> (puedes elegir varios)</span>
+      </label>
+      <div className="rda-equipo-grid">
+        {ESCOMBROS_EQUIPO.map((eq) => (
+          <button key={eq} type="button" className={`rda-equipo-btn ${equipos.includes(eq) ? "on" : ""}`}
+            onClick={() => setMeta("equipos", toggleEquipo(equipos, eq))}>{eq}</button>
+        ))}
+      </div>
+      {equipos.length > 0 && (
+        <p className="rda-equipo-count">{equipos.length} seleccionado{equipos.length !== 1 ? "s" : ""}</p>
+      )}
+      <div className="rda-meta-row">
+        <div className="rda-meta-toggle">
+          <span>{isOffer ? "¿Incluye operador / personas?" : "¿Quién va a operar?"}</span>
+          <div className="rda-toggle-group">
+            {[["true", "Sí incluye"], ["false", "Necesita operador"]].map(([v, l]) => (
+              <button key={v} type="button" className={String(meta.operador_incluido) === v ? "on" : ""}
+                onClick={() => setMeta("operador_incluido", v === "true")}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div className="rda-meta-toggle">
+          <span>¿Necesita transporte para llegar?</span>
+          <div className="rda-toggle-group">
+            {[["true", "Sí"], ["false", "Se mueve solo"]].map(([v, l]) => (
+              <button key={v} type="button" className={String(meta.necesita_transporte) === v ? "on" : ""}
+                onClick={() => setMeta("necesita_transporte", v === "true")}>{l}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <label className="rda-label">
+        {isOffer ? "¿Cuántas personas van?" : "¿Cuántas personas se necesitan?"}
+        <span className="rda-opt"> (opcional)</span>
+      </label>
+      <input className="rda-input" type="number" min="1" placeholder="Ej.: 8"
+        value={meta.personas ?? ""}
+        onChange={(e) => setMeta("personas", e.target.value ? parseInt(e.target.value, 10) : undefined)} />
+    </div>
+  );
+}
+
 function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, onGoConnections }) {
   const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
   const isCoord = draft.role === "coordinador";
+  const isEscombros = draft.type === "escombros";
   const ready = isDraftReady(draft);
 
   const setRole = (role) => {
@@ -729,13 +804,16 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, onGoConn
             {(draft.kind === "offer" ? OFFER_TYPES : Object.keys(TYPES).filter((k) => k !== "transporte" && k !== "voluntario")).map((k) => {
               const t = TYPES[k]; const on = draft.type === k; const Icon = TYPE_ICONS[k];
               return (
-                <button key={k} type="button" className={`rda-type ${on ? "on" : ""}`} onClick={() => set("type", k)}
+                <button key={k} type="button" className={`rda-type ${on ? "on" : ""}`}
+                  onClick={() => { set("type", k); if (k !== "escombros") set("meta", {}); else set("meta", { equipos: [] }); }}
                   style={on ? { borderColor: t.color, background: t.color + "12", color: t.color } : undefined}>
                   <Icon size={13} strokeWidth={2.4} /> {t.label}
                 </button>
               );
             })}
           </div>
+
+          {isEscombros && <EscombrosFields draft={draft} set={set} />}
 
           {draft.kind === "need" && (
             <>
@@ -752,12 +830,17 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, onGoConn
           )}
 
           <label className="rda-label">Lugar</label>
-          <input className="rda-input" placeholder="Ej.: Hospital Vargas, pabellón B"
+          <input className="rda-input"
+            placeholder={isEscombros ? "Ej.: Av. Soublette frente al edificio azul" : "Ej.: Hospital Vargas, pabellón B"}
             value={draft.place || ""} onChange={(e) => set("place", e.target.value)} />
 
           <label className="rda-label">Descripción</label>
           <textarea className="rda-input" rows={3}
-            placeholder={draft.kind === "need" ? "Qué se necesita y cuánto" : "Qué tienes disponible y desde dónde"}
+            placeholder={isEscombros
+              ? (draft.kind === "offer"
+                ? "Ej.: Retroexcavadora con operador, puede salir en 2 h…"
+                : "Ej.: Edificio colapsado, señales de vida, cuántas personas…")
+              : (draft.kind === "need" ? "Qué se necesita y cuánto" : "Qué tienes disponible y desde dónde")}
             value={draft.detail || ""} onChange={(e) => set("detail", e.target.value)} />
 
           <label className="rda-label">Contacto / punto de entrega</label>
@@ -778,7 +861,13 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, onGoConn
               {submitting ? "Publicando…" : "Publicar"}
             </button>
           </div>
-          {!ready && <p className="rda-hint">Completa lugar, descripción y ubica en el mapa.</p>}
+          {!ready && (
+            <p className="rda-hint">
+              {isEscombros && !parseEquipos(draft.meta).length
+                ? "Selecciona al menos un tipo de equipo y completa lugar, descripción y mapa."
+                : "Completa lugar, descripción y ubica en el mapa."}
+            </p>
+          )}
         </>
       )}
     </div>
@@ -797,6 +886,8 @@ const CSS = `
 .rda-stat{display:flex;flex-direction:column;align-items:center;line-height:1.1}
 .rda-stat b{font-size:20px;font-weight:800}
 .rda-stat span{font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:.05em}
+.rda-dev-link{display:inline-flex;align-items:center;gap:5px;color:#2563EB;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:650;text-decoration:none;white-space:nowrap}
+.rda-dev-link:hover{background:#DBEAFE;color:#1D4ED8}
 .rda-cta{display:inline-flex;align-items:center;gap:6px;background:#1A2233;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:650;cursor:pointer}
 .rda-cta:hover{background:#2A3445}
 .rda-tabs{display:flex;align-items:center;gap:2px;padding:0 20px;background:#fff;border-bottom:1px solid #E6E8EC}
@@ -872,6 +963,21 @@ const CSS = `
 .rda-role-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1.5px solid #DDE1E6;background:#fff;border-radius:9px;padding:9px 11px;cursor:pointer;text-align:left}
 .rda-role-btn span{font-size:11px;opacity:.7}
 .rda-coord-info{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:24px 12px;color:#374151;font-size:13px;line-height:1.5}
+.rda-req{color:#E03B4B;font-weight:700}
+.rda-escombros-fields{background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:10px;padding:12px;margin:8px 0;display:flex;flex-direction:column}
+.rda-equipo-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px}
+.rda-equipo-btn{border:1.5px solid #E5D5A8;background:#fff;color:#5B6675;border-radius:8px;padding:7px 9px;font-size:11px;font-weight:650;cursor:pointer;text-align:left;line-height:1.3}
+.rda-equipo-btn.on{border-color:#92400E;background:#92400E14;color:#92400E;font-weight:700}
+.rda-equipo-count{font-size:11px;color:#92400E;font-weight:650;margin:4px 0 0}
+.rda-meta-row{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.rda-meta-toggle{display:flex;flex-direction:column;gap:4px}
+.rda-meta-toggle>span{font-size:11.5px;font-weight:650;color:#374151}
+.rda-toggle-group{display:flex;gap:6px;flex-wrap:wrap}
+.rda-toggle-group button{border:1.5px solid #DDE1E6;background:#fff;color:#5B6675;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:650;cursor:pointer}
+.rda-toggle-group button.on{border-color:#92400E;background:#92400E14;color:#92400E}
+.rda-meta-chips{display:flex;gap:5px;flex-wrap:wrap}
+.rda-meta-chip{display:inline-flex;align-items:center;font-size:10.5px;font-weight:650;padding:2px 8px;border-radius:20px;background:#92400E14;color:#7C2D12}
+.rda-detail-meta-block{margin-bottom:10px}
 .rda-type-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .rda-type{display:inline-flex;align-items:center;gap:5px;border:1.5px solid #DDE1E6;background:#fff;color:#5B6675;border-radius:8px;padding:7px 9px;font-size:12px;font-weight:650;cursor:pointer}
 .rda-input{width:100%;border:1.5px solid #DDE1E6;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;color:#1A2233;background:#fff;resize:vertical}

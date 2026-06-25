@@ -1,4 +1,5 @@
 import { nearestZone } from "./constants.js";
+import { normalizeEscombrosMeta } from "./escombros.js";
 import {
   getQueue,
   setQueue,
@@ -98,6 +99,7 @@ export function createOfflineReport(draft, currentNeeds) {
       lat: draft.lat,
       lng: draft.lng,
       zone,
+      meta: draft.type === "escombros" ? normalizeEscombrosMeta(draft.meta, draft.kind || "need") : {},
     },
     at: Date.now(),
   });

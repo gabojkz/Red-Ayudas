@@ -1,3 +1,5 @@
+import { normalizeEscombrosMeta } from "./escombros.js";
+
 const PREFIX = "rda:v1";
 const KEYS = {
   needs: `${PREFIX}:needs`,
@@ -108,6 +110,7 @@ export function buildOfflineNeed(draft, id) {
     lat: draft.lat,
     lng: draft.lng,
     mins: 0,
+    meta: draft.type === "escombros" ? normalizeEscombrosMeta(draft.meta, draft.kind || "need") : {},
     createdAt: now,
     updatedAt: now,
     _pending: true,

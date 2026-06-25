@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getNeedById, updateNeedStatus } from "@/lib/db";
 import { validateNeedId, validateStatusUpdate } from "@/lib/validation";
+import { parseJsonBody } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";
 
+/** Internal — used by the web app, not the public feed API. */
 export async function GET(_request, { params }) {
   try {
     const { id } = await params;
@@ -22,6 +24,7 @@ export async function GET(_request, { params }) {
   }
 }
 
+/** Internal — used by the web app, not the public feed API. */
 export async function PATCH(request, { params }) {
   try {
     const { id } = await params;
@@ -30,8 +33,11 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ errors: idCheck.errors }, { status: 400 });
     }
 
-    const body = await request.json();
-    const parsed = validateStatusUpdate(body);
+    const bodyResult = await parseJsonBody(request);
+    if (!bodyResult.ok) {
+      return NextResponse.json({ errors: bodyResult.errors }, { status: bodyResult.status });
+    }
+    const parsed = validateStatusUpdate(bodyResult.data);
     if (!parsed.ok) {
       return NextResponse.json({ errors: parsed.errors }, { status: 400 });
     }

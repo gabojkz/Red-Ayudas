@@ -1,7 +1,11 @@
 import { TYPES, URGENCY, STATUS, KIND, CONN_STATUS, nearestZone } from "./constants.js";
+import { validateEscombrosMeta, parseEquipos } from "./escombros.js";
+import { sanitizeText } from "./sanitize.js";
 
 const VENEZUELA_LAT = [0.5, 12.5];
 const VENEZUELA_LNG = [-73.5, -59.5];
+const NEED_STATUS_FILTERS = new Set(["activas", "cubierto"]);
+const CONNECTION_STATUS_FILTERS = new Set(["activas", "todas", ...Object.keys(CONN_STATUS)]);
 
 export function validateCreateNeed(body) {
   const errors = [];
@@ -16,8 +20,8 @@ export function validateCreateNeed(body) {
   if (!KIND[postKind]) errors.push("kind inválido (need | offer)");
   if (!type || !TYPES[type]) errors.push("type inválido");
   if (!urgency || !URGENCY[urgency]) errors.push("urgency inválida");
-  if (!place || typeof place !== "string" || !place.trim()) errors.push("place requerido");
-  if (!detail || typeof detail !== "string" || !detail.trim()) errors.push("detail requerido");
+  if (!place || typeof place !== "string" || !sanitizeText(place)) errors.push("place requerido");
+  if (!detail || typeof detail !== "string" || !sanitizeText(detail)) errors.push("detail requerido");
 
   const latNum = Number(lat);
   const lngNum = Number(lng);
@@ -28,6 +32,13 @@ export function validateCreateNeed(body) {
     errors.push("lng fuera de rango Venezuela");
   }
 
+  let meta = {};
+  if (type === "escombros") {
+    const metaCheck = validateEscombrosMeta(body.meta, postKind);
+    if (!metaCheck.ok) errors.push(...metaCheck.errors);
+    else meta = metaCheck.data;
+  }
+
   if (errors.length) return { ok: false, errors };
 
   return {
@@ -36,13 +47,14 @@ export function validateCreateNeed(body) {
       kind: postKind,
       type,
       urgency,
-      place: place.trim().slice(0, 200),
-      detail: detail.trim().slice(0, 2000),
-      contact: (contact && String(contact).trim()) || "—",
+      place: sanitizeText(place, 200),
+      detail: sanitizeText(detail, 2000),
+      contact: sanitizeText(contact, 200) || "—",
       lat: latNum,
       lng: lngNum,
       zone: nearestZone(latNum, lngNum),
       status: "abierto",
+      meta,
     },
   };
 }
@@ -74,7 +86,8 @@ export function isDraftReady(draft) {
     draft.lat != null &&
     draft.lng != null &&
     Number.isFinite(lat) &&
-    Number.isFinite(lng)
+    Number.isFinite(lng) &&
+    (draft.type !== "escombros" || (draft.meta?.equipos?.length > 0 || parseEquipos(draft.meta).length > 0))
   );
 }
 
@@ -97,7 +110,7 @@ export function validateCreateConnection(body) {
     data: {
       needId,
       offerId,
-      notes: body.notes ? String(body.notes).trim().slice(0, 2000) : undefined,
+      notes: body.notes ? sanitizeText(body.notes, 2000) : undefined,
       coordinatorRemote: Boolean(body.coordinatorRemote),
     },
   };
@@ -114,7 +127,7 @@ export function validateConnectionUpdate(body) {
     if (!CONN_STATUS[body.status]) errors.push("status de conexión inválido");
     else data.status = body.status;
   }
-  if (body.notes != null) data.notes = String(body.notes).trim().slice(0, 2000);
+  if (body.notes != null) data.notes = sanitizeText(body.notes, 2000);
   if (body.coordinatorRemote != null) data.coordinatorRemote = Boolean(body.coordinatorRemote);
 
   if (!Object.keys(data).length) errors.push("Nada que actualizar");
@@ -129,4 +142,27 @@ export function validateConnectionId(id) {
     return { ok: false, errors: ["id inválido"] };
   }
   return { ok: true, data: num };
+}
+
+export function validateListNeedsQuery({ status, type, kind } = {}) {
+  const errors = [];
+  if (status && !NEED_STATUS_FILTERS.has(status)) errors.push("status inválido");
+  if (type && !TYPES[type]) errors.push("type inválido");
+  if (kind && !KIND[kind]) errors.push("kind inválido");
+  if (errors.length) return { ok: false, errors };
+  return {
+    ok: true,
+    data: {
+      status: status || undefined,
+      type: type || undefined,
+      kind: kind || undefined,
+    },
+  };
+}
+
+export function validateListConnectionsQuery({ status } = {}) {
+  if (status && !CONNECTION_STATUS_FILTERS.has(status)) {
+    return { ok: false, errors: ["status inválido"] };
+  }
+  return { ok: true, data: { status: status || undefined } };
 }

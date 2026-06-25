@@ -145,6 +145,41 @@ describe("validateCreateNeed — ofertas (ofrece)", () => {
     assert.equal(r.ok, true);
     assert.equal(r.data.kind, "need");
   });
+
+  it("acepta escombros con meta JSONB", () => {
+    const r = validateCreateNeed({
+      kind: "need",
+      type: "escombros",
+      urgency: "critica",
+      place: "Av. Soublette",
+      detail: "Edificio colapsado",
+      lat: 10.599,
+      lng: -66.93,
+      meta: {
+        equipos: ["Retroexcavadora", "Pico, pala y carretilla"],
+        operador_incluido: false,
+        necesita_transporte: false,
+        personas: 10,
+      },
+    });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.data.meta.equipos, ["Retroexcavadora", "Pico, pala y carretilla"]);
+    assert.equal(r.data.meta.personas, 10);
+  });
+
+  it("rechaza escombros sin equipos", () => {
+    const r = validateCreateNeed({
+      kind: "need",
+      type: "escombros",
+      urgency: "alta",
+      place: "San Bernardino",
+      detail: "Techos caídos",
+      lat: 10.507,
+      lng: -66.904,
+      meta: {},
+    });
+    assert.equal(r.ok, false);
+  });
 });
 
 describe("isDraftReady — formulario cliente", () => {
@@ -203,6 +238,25 @@ describe("isDraftReady — formulario cliente", () => {
       lat: 10.49,
       lng: -66.9,
     }), false);
+  });
+
+  it("requiere equipos para escombros", () => {
+    assert.equal(isDraftReady({
+      type: "escombros",
+      place: "Av. Soublette",
+      detail: "Colapso",
+      lat: 10.599,
+      lng: -66.93,
+      meta: { equipos: [] },
+    }), false);
+    assert.equal(isDraftReady({
+      type: "escombros",
+      place: "Av. Soublette",
+      detail: "Colapso",
+      lat: 10.599,
+      lng: -66.93,
+      meta: { equipos: ["Grúa", "Retroexcavadora"] },
+    }), true);
   });
 });
 

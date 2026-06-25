@@ -231,7 +231,7 @@ export default function LibreMap({
           >
             <button
               type="button"
-              className={`rda-pin ${selected ? "sel" : ""} ${crit ? "crit" : ""} ${n.kind === "offer" ? "offer" : ""}`}
+              className={`rda-pin ${selected ? "sel" : ""} ${crit ? "crit" : ""} ${n.kind === "offer" ? "offer" : ""} ${n.type === "escombros" ? "escombros" : ""}`}
               style={{
                 background: n.color,
                 opacity: dimmed ? 0.55 : 1,

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getConnectionById, updateConnection } from "@/lib/db";
 import { validateConnectionId, validateConnectionUpdate } from "@/lib/validation";
+import { parseJsonBody } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";
 
+/** Internal — used by the web app, not the public feed API. */
 export async function PATCH(request, { params }) {
   try {
     const { id } = await params;
@@ -12,8 +14,11 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ errors: idCheck.errors }, { status: 400 });
     }
 
-    const body = await request.json();
-    const parsed = validateConnectionUpdate(body);
+    const bodyResult = await parseJsonBody(request);
+    if (!bodyResult.ok) {
+      return NextResponse.json({ errors: bodyResult.errors }, { status: bodyResult.status });
+    }
+    const parsed = validateConnectionUpdate(bodyResult.data);
     if (!parsed.ok) {
       return NextResponse.json({ errors: parsed.errors }, { status: 400 });
     }
@@ -29,6 +34,7 @@ export async function PATCH(request, { params }) {
   }
 }
 
+/** Internal — used by the web app, not the public feed API. */
 export async function GET(_request, { params }) {
   try {
     const { id } = await params;

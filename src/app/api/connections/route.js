@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { listConnections, createConnection, getNeedById } from "@/lib/db";
-import { validateCreateConnection } from "@/lib/validation";
+import { validateCreateConnection, validateListConnectionsQuery } from "@/lib/validation";
+import { parseJsonBody } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";
 
+/** Internal — used by the web app, not the public feed API. */
 export async function GET(request) {
   try {
     if (!process.env.DATABASE_URL) {
@@ -13,8 +15,13 @@ export async function GET(request) {
       return NextResponse.json({ error: "Base de datos no configurada" }, { status: 503 });
     }
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || undefined;
-    const connections = await listConnections({ status });
+    const query = validateListConnectionsQuery({
+      status: searchParams.get("status") || undefined,
+    });
+    if (!query.ok) {
+      return NextResponse.json({ errors: query.errors }, { status: 400 });
+    }
+    const connections = await listConnections(query.data);
     return NextResponse.json({ connections });
   } catch (err) {
     console.error("GET /api/connections", err);
@@ -22,6 +29,7 @@ export async function GET(request) {
   }
 }
 
+/** Internal — used by the web app, not the public feed API. */
 export async function POST(request) {
   try {
     if (!process.env.DATABASE_URL) {
@@ -30,8 +38,11 @@ export async function POST(request) {
         { status: 503 }
       );
     }
-    const body = await request.json();
-    const parsed = validateCreateConnection(body);
+    const bodyResult = await parseJsonBody(request);
+    if (!bodyResult.ok) {
+      return NextResponse.json({ errors: bodyResult.errors }, { status: bodyResult.status });
+    }
+    const parsed = validateCreateConnection(bodyResult.data);
     if (!parsed.ok) {
       return NextResponse.json({ errors: parsed.errors }, { status: 400 });
     }

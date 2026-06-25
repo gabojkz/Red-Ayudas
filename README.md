@@ -92,34 +92,31 @@ Abre [http://localhost:3000](http://localhost:3000).
 npm test
 ```
 
-## API
+## API pública (feed)
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/needs` | Lista necesidades (`?status=activas\|cubierto`) |
-| `POST` | `/api/needs` | Publica una necesidad |
-| `GET` | `/api/needs/:id` | Detalle |
-| `PATCH` | `/api/needs/:id` | Actualiza estado (`abierto`, `en_camino`, `cubierto`) |
+Un solo endpoint de solo lectura para integradores:
 
-Ejemplo POST:
-
-```json
-{
-  "type": "medicamentos",
-  "urgency": "alta",
-  "place": "Hospital Vargas",
-  "detail": "Insulina y antibióticos",
-  "contact": "Recepción pabellón B",
-  "lat": 10.498,
-  "lng": -66.905
-}
 ```
+GET /api/feed
+```
+
+| Parámetro | Descripción |
+|-----------|-------------|
+| `kind` | `need` u `offer` |
+| `type` | categoría (`medicamentos`, `agua`, …) |
+| `limit` | máx. ítems (default 100, máx. 500) |
+
+Documentación: [`/docs/api`](/docs/api) · regenerar con `npm run docs:api`.
+
+Las rutas `/api/needs` y `/api/connections` son internas (app web).
 
 ## Deploy en Vercel
 
 1. Sube el repo a GitHub.
 2. Importa el proyecto en [vercel.com](https://vercel.com).
-3. Añade la variable de entorno `DATABASE_URL` (connection string de Supabase pooler).
+3. Añade variables de entorno:
+   - `DATABASE_URL` (connection string de Supabase pooler)
+   - `NEXT_PUBLIC_APP_URL` (tu URL de producción, p. ej. `https://red-ayudas.vercel.app`) — necesaria para SEO (canonical, sitemap, Open Graph)
 4. Deploy.
 
 Vercel detecta Next.js automáticamente. No necesitas configuración extra.
@@ -128,7 +125,8 @@ Vercel detecta Next.js automáticamente. No necesitas configuración extra.
 
 ```
 src/
-  app/api/needs/     # API REST
+  app/api/feed/      # API pública (GET feed)
+  app/api/needs/     # interno (app web)
   components/        # RedDeAyuda, LibreMap
   lib/               # db, validation, constants
 supabase/migrations/ # SQL schema

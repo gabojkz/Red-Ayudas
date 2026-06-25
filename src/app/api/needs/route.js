@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { listNeeds, createNeed } from "@/lib/db";
-import { validateCreateNeed } from "@/lib/validation";
+import { validateCreateNeed, validateListNeedsQuery } from "@/lib/validation";
+import { parseJsonBody } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";
 
+/** Internal — used by the web app, not the public feed API. */
 export async function GET(request) {
   try {
     if (!process.env.DATABASE_URL) {
@@ -16,10 +18,15 @@ export async function GET(request) {
       );
     }
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || undefined;
-    const type = searchParams.get("type") || undefined;
-    const kind = searchParams.get("kind") || undefined;
-    const needs = await listNeeds({ status, type, kind });
+    const query = validateListNeedsQuery({
+      status: searchParams.get("status") || undefined,
+      type: searchParams.get("type") || undefined,
+      kind: searchParams.get("kind") || undefined,
+    });
+    if (!query.ok) {
+      return NextResponse.json({ errors: query.errors }, { status: 400 });
+    }
+    const needs = await listNeeds(query.data);
     return NextResponse.json({ needs });
   } catch (err) {
     console.error("GET /api/needs", err);
@@ -30,6 +37,7 @@ export async function GET(request) {
   }
 }
 
+/** Internal — used by the web app, not the public feed API. */
 export async function POST(request) {
   try {
     if (!process.env.DATABASE_URL) {
@@ -38,8 +46,11 @@ export async function POST(request) {
         { status: 503 }
       );
     }
-    const body = await request.json();
-    const parsed = validateCreateNeed(body);
+    const bodyResult = await parseJsonBody(request);
+    if (!bodyResult.ok) {
+      return NextResponse.json({ errors: bodyResult.errors }, { status: bodyResult.status });
+    }
+    const parsed = validateCreateNeed(bodyResult.data);
     if (!parsed.ok) {
       return NextResponse.json({ errors: parsed.errors }, { status: 400 });
     }

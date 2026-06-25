@@ -3,6 +3,9 @@ import { rowToNeed, rowToConnection } from "./constants.js";
 
 const { Pool } = pg;
 
+const NEED_COLUMNS =
+  "id, kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at, updated_at";
+
 let pool;
 
 export function getPool() {
@@ -46,7 +49,7 @@ export async function listNeeds({ status, type, kind } = {}) {
 
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const sql = `
-    SELECT id, kind, type, urgency, status, place, zone, detail, contact, lat, lng, created_at, updated_at
+    SELECT ${NEED_COLUMNS}
     FROM needs
     ${where}
     ORDER BY
@@ -60,9 +63,9 @@ export async function listNeeds({ status, type, kind } = {}) {
 
 export async function createNeed(data) {
   const sql = `
-    INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    RETURNING id, kind, type, urgency, status, place, zone, detail, contact, lat, lng, created_at, updated_at
+    INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+    RETURNING ${NEED_COLUMNS}
   `;
   const params = [
     data.kind || "need",
@@ -75,6 +78,7 @@ export async function createNeed(data) {
     data.contact,
     data.lat,
     data.lng,
+    JSON.stringify(data.meta || {}),
   ];
   const { rows } = await getPool().query(sql, params);
   return rowToNeed(rows[0]);
@@ -84,7 +88,7 @@ export async function updateNeedStatus(id, status) {
   const sql = `
     UPDATE needs SET status = $2
     WHERE id = $1
-    RETURNING id, kind, type, urgency, status, place, zone, detail, contact, lat, lng, created_at, updated_at
+    RETURNING ${NEED_COLUMNS}
   `;
   const { rows } = await getPool().query(sql, [id, status]);
   return rows[0] ? rowToNeed(rows[0]) : null;
@@ -92,8 +96,7 @@ export async function updateNeedStatus(id, status) {
 
 export async function getNeedById(id) {
   const { rows } = await getPool().query(
-    `SELECT id, kind, type, urgency, status, place, zone, detail, contact, lat, lng, created_at, updated_at
-     FROM needs WHERE id = $1`,
+    `SELECT ${NEED_COLUMNS} FROM needs WHERE id = $1`,
     [id]
   );
   return rows[0] ? rowToNeed(rows[0]) : null;

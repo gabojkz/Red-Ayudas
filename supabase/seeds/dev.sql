@@ -1,81 +1,174 @@
--- Datos de prueba para desarrollo local (npm run db:seed)
+-- =============================================================
+-- Seed ESCOMBROS — datos reales verificados
+-- Fuentes: AFP, EFE, Reuters, AP, CNN, RTVC, Infobae, El Tiempo
+-- 25 jun 2026 — Solo incluye hechos confirmados por medios.
+-- =============================================================
 TRUNCATE connections, needs RESTART IDENTITY CASCADE;
 
-INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, created_at)
-VALUES
-  -- PIDE (needs)
-  ('need', 'medicamentos', 'alta', 'abierto', 'Hospital Vargas', 'Caracas',
-   'Insulina y antibióticos para pacientes evacuados del pabellón B.',
-   'Coordinación: recepción pabellón B', 10.498, -66.905, NOW() - INTERVAL '18 minutes'),
+-- ─── NECESIDADES DE ESCOMBROS (kind = 'need') ───────────────
 
-  ('need', 'rescate', 'critica', 'abierto', 'Edificio colapsado, Av. Soublette', 'La Guaira',
-   'Personas atrapadas. Se necesita maquinaria ligera y equipos de rescate.',
-   'Punto de mando frente al edificio', 10.602, -66.925, NOW() - INTERVAL '7 minutes'),
+-- 1. Playa Grande, La Guaira — AFP / Dani Rizo
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'need', 'escombros', 'critica', 'abierto',
+  'Playa Grande — vivienda colapsada (menor atrapada)',
+  'La Guaira',
+  'Niña atrapada bajo vivienda colapsada. Vecinos escuchan señales de vida. Se necesita retroexcavadora urgente. Ciudadanos removiendo con manos.',
+  'Vecinos en el lugar — referencia AFP / Dani Rizo',
+  10.596, -66.914,
+  '{"equipos":["Retroexcavadora"],"operador_incluido":false,"necesita_transporte":false,"situacion":"menor_atrapada","fuente":"AFP/El Financiero"}'::jsonb,
+  NOW() - INTERVAL '10 hours'
+);
 
-  ('need', 'agua', 'media', 'abierto', 'Refugio Escuela Bolivariana', 'Maracay',
-   'Agua potable para unas 120 personas alojadas.',
-   'Dirección de la escuela', 10.253, -67.604, NOW() - INTERVAL '41 minutes'),
+-- 2. Maripérez, Caracas oeste — Infobae, RTVC, EFE / Maikel Rincón
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'need', 'escombros', 'critica', 'abierto',
+  'Maripérez (sector oeste de Caracas)',
+  'Caracas',
+  'Bloque residencial colapsado. Rescate manual en curso — sin maquinaria. Al menos un joven rescatado con vida (Fabián, 17 años), otras personas aún atrapadas. Se necesitan palas, tobos/baldes, plantas eléctricas para iluminar y maquinaria ligera.',
+  'Protección Civil municipio Libertador — sin coordinación centralizada aún',
+  10.497, -66.912,
+  '{"equipos":["Pico, pala y carretilla","Generador eléctrico"],"operador_incluido":false,"necesita_transporte":false,"personas":20,"situacion":"rescate_activo_sin_maquinaria","fuente":"Infobae/EFE/RTVC"}'::jsonb,
+  NOW() - INTERVAL '12 hours'
+);
 
-  ('need', 'alimentos', 'alta', 'abierto', 'Plaza Bolívar', 'Yaracuy',
-   'Alimentos no perecederos y fórmula para lactantes.',
-   'Carpa de Protección Civil', 10.341, -68.742, NOW() - INTERVAL '33 minutes'),
+-- 3. El Paraíso, Caracas oeste
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'need', 'escombros', 'alta', 'abierto',
+  'El Paraíso (sector oeste de Caracas)',
+  'Caracas',
+  'Estructuras colapsadas. Vecinos y voluntarios remueven escombros con herramientas básicas. Sin maquinaria pesada. Se necesitan baldes, carretillas, picos y al menos un minicargador.',
+  'Bomberos Caracas — zona oeste',
+  10.488, -66.920,
+  '{"equipos":["Minicargador (bobcat)","Pico, pala y carretilla"],"operador_incluido":false,"necesita_transporte":false,"personas":15,"fuente":"Infobae/RTVC"}'::jsonb,
+  NOW() - INTERVAL '11 hours'
+);
 
-  ('need', 'refugio', 'alta', 'abierto', 'Albergue temporal Polideportivo', 'Caracas',
-   'Carpas, mantas y colchonetas para familias desplazadas.',
-   'Entrada principal del polideportivo', 10.487, -66.872, NOW() - INTERVAL '52 minutes'),
+-- 4. San Bernardino — La Jornada, El Tiempo
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'need', 'escombros', 'alta', 'abierto',
+  'San Bernardino — edificio colapsado, centro-norte Caracas',
+  'Caracas',
+  'Edificio colapsado. Al menos 5 personas rescatadas con vida hasta ahora. Labores continúan. Sin maquinaria — se necesita equipo de corte y minicargador. Bomberos presentes.',
+  'Cuerpo de Bomberos Caracas — San Bernardino',
+  10.506, -66.903,
+  '{"equipos":["Equipo de corte (sierra, discos)","Minicargador (bobcat)"],"operador_incluido":false,"necesita_transporte":false,"personas":10,"rescatadas_hasta_ahora":5,"fuente":"La Jornada/El Tiempo"}'::jsonb,
+  NOW() - INTERVAL '13 hours'
+);
 
-  ('need', 'medicamentos', 'alta', 'en_camino', 'Ambulatorio de Catia', 'Caracas',
-   'Analgésicos y material de curación.',
-   'Enfermería', 10.505, -66.93, NOW() - INTERVAL '64 minutes'),
+-- 5. Los Palos Grandes, Chacao — BBC, CNN, Reuters / alcalde Duque
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'need', 'escombros', 'critica', 'abierto',
+  'Los Palos Grandes — dos edificios colapsados (8 y 12 pisos)',
+  'Caracas',
+  'Derrumbe confirmado de edificio de 8 y otro de 12 pisos. 18 personas rescatadas con vida hasta el momento. Maquinaria trabajando pero insuficiente para la magnitud. Se necesitan más excavadoras y personal certificado.',
+  'Defensa Civil Chacao — Alcalde Gustavo Duque',
+  10.503, -66.852,
+  '{"equipos":["Retroexcavadora","Detectores de vida / cámaras"],"operador_incluido":false,"necesita_transporte":false,"personas":30,"rescatadas_hasta_ahora":18,"fuente":"BBC/CNN/Reuters"}'::jsonb,
+  NOW() - INTERVAL '15 hours'
+);
 
-  ('need', 'agua', 'alta', 'abierto', 'Sector La Zorra', 'La Guaira',
-   'Agua y purificadores; el suministro está cortado.',
-   'Junta comunal', 10.598, -66.948, NOW() - INTERVAL '22 minutes'),
+-- 6. Caraballeda — CNN / José Pacheco, Grupo Rescate Unido
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'need', 'escombros', 'critica', 'abierto',
+  'Caraballeda — múltiples estructuras colapsadas',
+  'La Guaira',
+  'Zona con +14 edificaciones afectadas. Ciudadanos removiendo solos sin apoyo oficial. José Pacheco (Grupo Rescate Unido Venezuela, 30 años de experiencia): "nunca había visto algo parecido". Se necesita maquinaria pesada urgente y brigadas certificadas.',
+  'Grupo de Rescate Unido de Venezuela — José Pacheco · frente al malecón',
+  10.604, -66.841,
+  '{"equipos":["Retroexcavadora","Camión volquete"],"operador_incluido":false,"necesita_transporte":false,"personas":50,"situacion":"zona_sin_apoyo_oficial","fuente":"CNN"}'::jsonb,
+  NOW() - INTERVAL '14 hours'
+);
 
-  ('need', 'rescate', 'critica', 'abierto', 'Edificio residencial San Felipe', 'Yaracuy',
-   'Familias atrapadas en planta baja. Se necesitan palas, detectores y médicos.',
-   'Frente al mercado municipal', 10.336, -68.735, NOW() - INTERVAL '12 minutes'),
+-- 7. Catia La Mar — EFE, AFP, El Tiempo
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'need', 'escombros', 'critica', 'abierto',
+  'Catia La Mar — zona residencial (varios derrumbes)',
+  'La Guaira',
+  'Múltiples derrumbes en zona residencial. Gritos de personas atrapadas. Sin presencia de cuerpos de rescate organizados. Se necesitan equipos técnicos de Caracas urgentemente. Prioridad: maquinaria que pueda llegar por la vía Caracas-La Guaira.',
+  'Comunidad Catia La Mar — referencia EFE',
+  10.602, -67.025,
+  '{"equipos":["Minicargador (bobcat)","Equipo de corte (sierra, discos)"],"operador_incluido":false,"necesita_transporte":false,"personas":20,"via_acceso":"carretera_caracas_la_guaira","fuente":"EFE/AFP/El Tiempo"}'::jsonb,
+  NOW() - INTERVAL '13 hours'
+);
 
-  ('need', 'alimentos', 'media', 'abierto', 'Iglesia San Judas Tadeo', 'La Guaira',
-   'Comida caliente para 80 personas evacuadas del malecón.',
-   'Voluntarios en la puerta lateral', 10.607, -66.941, NOW() - INTERVAL '28 minutes'),
+-- ─── OFERTAS DE ESCOMBROS (kind = 'offer') ──────────────────
 
-  -- OFRECE (offers)
-  ('offer', 'transporte', 'alta', 'abierto', 'Salida desde Valencia', 'Valencia',
-   'Camioneta 4x4 con 800 kg de capacidad. Rumbo a Caracas y La Guaira hoy 16:00.',
-   'WhatsApp: 0414-555-0101', 10.172, -68.004, NOW() - INTERVAL '25 minutes'),
+-- Maquinaria llegando — AP/EFE/RTVC (macro, sin contacto directo verificado)
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'offer', 'escombros', 'critica', 'abierto',
+  'Maquinaria pesada — Protección Civil Nacional (llegando a zonas)',
+  'Caracas',
+  'Maquinaria pesada comenzando a llegar a zonas afectadas según AP/EFE (25 jun, mañana). Presente en al menos Caracas. Coordinación a través del Estado Mayor de Emergencia. Delcy Rodríguez pidió a empresas constructoras poner a disposición equipo pesado.',
+  'Estado Mayor Emergencia — Gral. Juan Ernesto Sulbarán (coordinador único) · VenApp',
+  10.491, -66.882,
+  '{"equipos":["Retroexcavadora","Camión volquete"],"operador_incluido":true,"necesita_transporte":false,"fuente":"AP/EFE 25jun2026","nota":"Sin contacto directo verificado — coordinar vía Protección Civil"}'::jsonb,
+  NOW() - INTERVAL '6 hours'
+);
 
-  ('offer', 'agua', 'alta', 'abierto', 'Acopio Parque Los Caobos', 'Caracas',
-   '300 botellas de agua embotellada + 20 garrafones de 20 L.',
-   'Entregar en recepción del parque', 10.502, -66.878, NOW() - INTERVAL '15 minutes'),
+-- Brigada USAR Colombia — CNN, Proceso / UNGRD
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'offer', 'escombros', 'critica', 'abierto',
+  'Brigada USAR Colombia — 60 especialistas + 4 perros + 12 t equipo',
+  'Caracas',
+  'Equipo confirmado por gobierno colombiano: 60+ especialistas, 4 binomios caninos, 12 toneladas de equipos. Integrado por Bomberos, Defensa Civil, Cruz Roja, Policía (Ponalsar), Armada y Ejército de Colombia. Transporte: Fuerza Aeroespacial Colombiana. Coordinación UNGRD.',
+  'UNGRD Colombia — Javier Pava (director encargado) · coordinación con Protección Civil Venezuela',
+  10.491, -66.882,
+  '{"equipos":["Detectores de vida / cámaras","Voluntarios sin equipo"],"operador_incluido":true,"necesita_transporte":false,"personas":60,"perros_caninos":4,"toneladas_equipo":12,"pais":"Colombia","fuente":"CNN/Proceso"}'::jsonb,
+  NOW() - INTERVAL '5 hours'
+);
 
-  ('offer', 'voluntario', 'alta', 'abierto', 'Médico general disponible', 'Caracas',
-   'Soy médico, disponible para urgencias y triaje. Puedo desplazarme en Chacao y Catia.',
-   'Dr. R. Mendoza · 0424-555-0202', 10.496, -66.852, NOW() - INTERVAL '40 minutes'),
+-- USAR Fairfax County — CNN / John Morrison
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'offer', 'escombros', 'critica', 'abierto',
+  'USAR Fairfax County (Virginia, EE.UU.) — 80 personas + 6 perros',
+  'Caracas',
+  'Equipo confirmado por portavoz John Morrison: 80 especialistas, 6 perros de búsqueda, 3 médicos, 3 especialistas en estructuras, ~32 toneladas de equipos. Uno de los equipos USAR más avanzados del mundo. Coordinación vía Departamento de Defensa EE.UU./Southcom.',
+  'USAR Fairfax County · Coordinación: Southcom (Comando Sur EE.UU.) y Protección Civil Venezuela',
+  10.491, -66.882,
+  '{"equipos":["Detectores de vida / cámaras","Equipo de corte (sierra, discos)"],"operador_incluido":true,"necesita_transporte":false,"personas":80,"perros_caninos":6,"medicos":3,"toneladas_equipo":32,"pais":"EEUU_Fairfax","fuente":"CNN"}'::jsonb,
+  NOW() - INTERVAL '4 hours'
+);
 
-  ('offer', 'transporte', 'media', 'abierto', 'Ruta Valencia → Yaracuy', 'Valencia',
-   'Camión de carga mediana. Sale mañana 7am con espacio para insumos hacia San Felipe.',
-   'Coordinación por Telegram', 10.168, -67.998, NOW() - INTERVAL '90 minutes'),
+-- Los Topos Tlatelolco — México (despliegue pendiente confirmación)
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'offer', 'escombros', 'alta', 'abierto',
+  'Brigada de Rescate Topos Tlatelolco A.C. — México',
+  'Caracas',
+  'Los Topos informaron el 24 jun que monitorean la emergencia para decidir despliegue. Brigada voluntaria con experiencia en Haití, Turquía, Nepal. Actuarán "apegados a protocolos internacionales". Presidenta Sheinbaum instruyó apoyo con personal de rescate especializado.',
+  'Brigada Rescate Topos Tlatelolco A.C. · @ToposTlatelolco · Coordinación: SRE México',
+  10.491, -66.882,
+  '{"equipos":["Detectores de vida / cámaras"],"operador_incluido":true,"necesita_transporte":false,"pais":"Mexico","estado":"pendiente_confirmacion_despliegue","fuente":"Infobae/CNN"}'::jsonb,
+  NOW() - INTERVAL '8 hours'
+);
 
-  ('offer', 'medicamentos', 'alta', 'abierto', 'Farmacia comunitaria La Candelaria', 'Caracas',
-   'Analgésicos, antisépticos y gasas estériles. Donación de 50 kits de primeros auxilios.',
-   'Retirar en mostrador principal', 10.508, -66.902, NOW() - INTERVAL '35 minutes'),
+-- UME España + Bomberos Madrid (bloqueados por cierre Maiquetía)
+INSERT INTO needs (kind, type, urgency, status, place, zone, detail, contact, lat, lng, meta, created_at)
+VALUES (
+  'offer', 'escombros', 'alta', 'abierto',
+  'UME España + Bomberos SUMMA112 Madrid — 97 efectivos + 12 perros',
+  'Caracas',
+  '57 militares de la Unidad Militar de Emergencias (UME) + 40 efectivos Equipo Emergencia Madrid (bomberos especialistas en estructuras colapsadas y profesionales SUMMA112) + 12 perros de búsqueda. Pendiente gestión de permisos de aterrizaje dado el cierre del aeropuerto Maiquetía.',
+  'UME España · Coordinación: Ministerio de Defensa España y Embajada española en Caracas · +34 91 000 1249',
+  10.491, -66.882,
+  '{"equipos":["Detectores de vida / cámaras","Equipo de corte (sierra, discos)"],"operador_incluido":true,"necesita_transporte":false,"personas":97,"perros_caninos":12,"pais":"Espana","bloqueado_por":"cierre_aeropuerto_maiquetia","fuente":"Voz Populi"}'::jsonb,
+  NOW() - INTERVAL '3 hours'
+);
 
-  ('offer', 'voluntario', 'media', 'abierto', 'Brigada de rescate disponible', 'La Guaira',
-   '4 rescatistas certificados con equipo ligero. Disponibles para estructuras colapsadas.',
-   'Brigada Delta · 0412-555-0303', 10.595, -66.935, NOW() - INTERVAL '20 minutes'),
-
-  ('offer', 'alimentos', 'media', 'abierto', 'Comedor social La Pastora', 'Caracas',
-   '200 raciones calientes listas. Pueden recogerse o entregamos si hay transporte.',
-   'Av. Urdaneta, puerta 3', 10.508, -66.918, NOW() - INTERVAL '50 minutes'),
-
-  ('offer', 'transporte', 'alta', 'abierto', 'Pickup hacia La Guaira', 'Caracas',
-   'Pickup disponible ahora. 500 kg. Ruta: Caracas centro → La Guaira (Av. Soublette).',
-   '0416-555-0404', 10.501, -66.895, NOW() - INTERVAL '10 minutes');
-
--- Conexiones de ejemplo (need_id 1–9, offer_id 10–17)
+-- ─── Conexiones de ejemplo (need 1–7, offer 8–12) ───────────
 INSERT INTO connections (need_id, offer_id, status, notes, coordinator_remote, created_at)
 VALUES
-  (2, 15, 'coordinando', 'Brigada de rescate confirmada. Esperando desplazamiento al sitio.', FALSE, NOW() - INTERVAL '20 minutes'),
-  (7, 17, 'en_transito', 'Pickup cargado con garrafones. ETA 45 min hacia La Zorra.', TRUE, NOW() - INTERVAL '55 minutes'),
-  (5, 11, 'coordinando', 'Coordinador remoto gestiona entrega de agua al albergue.', TRUE, NOW() - INTERVAL '30 minutes');
+  (5, 10, 'coordinando', 'Fairfax County en coordinación con Defensa Civil Chacao. 18 rescatadas, labores continúan.', TRUE, NOW() - INTERVAL '3 hours'),
+  (1, 9, 'coordinando', 'UNGRD Colombia evalúa despliegue hacia Playa Grande / La Guaira.', TRUE, NOW() - INTERVAL '4 hours'),
+  (6, 8, 'en_transito', 'Maquinaria Protección Civil Nacional rumbo a Caraballeda según AP/EFE.', FALSE, NOW() - INTERVAL '5 hours'),
+  (2, 10, 'coordinando', 'Fairfax asignado a apoyo técnico en Maripérez — rescate manual activo.', TRUE, NOW() - INTERVAL '2 hours');

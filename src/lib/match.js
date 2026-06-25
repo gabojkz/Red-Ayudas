@@ -16,6 +16,7 @@ function typeReason(needType, offerType) {
   if (needType === offerType) return "Mismo tipo de recurso";
   if (offerType === "transporte") return "Transporte disponible";
   if (offerType === "voluntario") return "Voluntario disponible";
+  if (needType === "escombros" && offerType === "escombros") return "Equipo compatible";
   return "Recurso compatible";
 }
 
