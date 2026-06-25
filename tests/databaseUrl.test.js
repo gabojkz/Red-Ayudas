@@ -15,11 +15,22 @@ test("getDatabaseUrl uses DATABASE_URL for local dev", () => {
   Object.assign(process.env, prev);
 });
 
-test("getDatabaseUrl prefers POSTGRES_URL over direct Supabase DATABASE_URL", () => {
+test("getDatabaseUrl prefers DATABASE_URL locally even when POSTGRES_URL is set", () => {
   const prev = { ...process.env };
-  process.env.DATABASE_URL =
-    "postgresql://postgres:secret@db.aunvptctqfecwnqfwoja.supabase.co:5432/postgres";
+  delete process.env.VERCEL;
+  process.env.DATABASE_URL = "postgresql://local/test";
   process.env.POSTGRES_URL =
+    "postgresql://postgres.aunvptctqfecwnqfwoja:secret@aws-0-us-east-1.pooler.supabase.com:6543/postgres";
+  assert.equal(getDatabaseUrl(), "postgresql://local/test");
+  Object.assign(process.env, prev);
+});
+
+test("getDatabaseUrl skips direct POSTGRES_URL on Vercel and uses pooler DATABASE_URL", () => {
+  const prev = { ...process.env };
+  process.env.VERCEL = "1";
+  process.env.POSTGRES_URL =
+    "postgresql://postgres:secret@db.aunvptctqfecwnqfwoja.supabase.co:5432/postgres";
+  process.env.DATABASE_URL =
     "postgresql://postgres.aunvptctqfecwnqfwoja:secret@aws-0-us-east-1.pooler.supabase.com:6543/postgres";
   assert.equal(
     getDatabaseUrl(),
