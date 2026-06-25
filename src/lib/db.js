@@ -1,5 +1,6 @@
 import pg from "pg";
 import { rowToNeed, rowToConnection } from "./constants.js";
+import { getDatabaseUrl } from "./databaseUrl.js";
 
 const { Pool } = pg;
 
@@ -10,7 +11,7 @@ let pool;
 
 export function getPool() {
   if (!pool) {
-    const connectionString = process.env.DATABASE_URL;
+    const connectionString = getDatabaseUrl();
     if (!connectionString) {
       throw new Error("DATABASE_URL no configurada");
     }
@@ -19,7 +20,9 @@ export function getPool() {
       ssl: /localhost|127\.0\.0\.1|@postgres[:/]/i.test(connectionString)
         ? false
         : { rejectUnauthorized: false },
-      max: 5,
+      max: process.env.VERCEL ? 1 : 5,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
     });
   }
   return pool;

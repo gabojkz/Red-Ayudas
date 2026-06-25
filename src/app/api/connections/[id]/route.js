@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getConnectionById, updateConnection } from "@/lib/db";
 import { validateConnectionId, validateConnectionUpdate } from "@/lib/validation";
+import { hasDatabase } from "@/lib/databaseUrl";
 import { parseJsonBody } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listNeeds } from "@/lib/db";
 import { validateFeedQuery, buildFeed } from "@/lib/feed";
+import { hasDatabase } from "@/lib/databaseUrl";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request) {
   try {
-    if (!process.env.DATABASE_URL) {
+    if (!hasDatabase()) {
       if (process.env.NODE_ENV === "development") {
         return NextResponse.json(buildFeed([]));
       }

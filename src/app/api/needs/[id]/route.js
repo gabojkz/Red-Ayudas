@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getNeedById, updateNeedStatus } from "@/lib/db";
 import { validateNeedId, validateStatusUpdate } from "@/lib/validation";
+import { hasDatabase } from "@/lib/databaseUrl";
 import { parseJsonBody } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";

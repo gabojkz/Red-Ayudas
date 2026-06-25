@@ -32,7 +32,12 @@ export function isLocalDatabase(url) {
 
 export function getDatabaseUrl() {
   loadEnv();
-  return process.env.DATABASE_URL;
+  return (
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    null
+  );
 }
 
 export function createPgPool(Pool, url = getDatabaseUrl()) {

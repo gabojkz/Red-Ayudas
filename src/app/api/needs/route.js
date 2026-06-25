@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listNeeds, createNeed } from "@/lib/db";
 import { validateCreateNeed, validateListNeedsQuery } from "@/lib/validation";
+import { hasDatabase } from "@/lib/databaseUrl";
 import { parseJsonBody } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 /** Internal — used by the web app, not the public feed API. */
 export async function GET(request) {
   try {
-    if (!process.env.DATABASE_URL) {
+    if (!hasDatabase()) {
       if (process.env.NODE_ENV === "development") {
         return NextResponse.json({ needs: [] });
       }
@@ -40,7 +41,7 @@ export async function GET(request) {
 /** Internal — used by the web app, not the public feed API. */
 export async function POST(request) {
   try {
-    if (!process.env.DATABASE_URL) {
+    if (!hasDatabase()) {
       return NextResponse.json(
         { error: "Base de datos no configurada. Añade DATABASE_URL en .env.local" },
         { status: 503 }
