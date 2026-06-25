@@ -67,7 +67,7 @@ Los datos fake están en `supabase/seeds/dev.sql` — cubren todos los tipos, ur
 ### 1. Supabase
 
 1. Crea un proyecto en [supabase.com](https://supabase.com).
-2. Ve a **SQL Editor** y ejecuta el contenido de `supabase/migrations/001_needs.sql`.
+2. Aplica el esquema con `supabase db push` (ver abajo) o ejecuta los SQL de `supabase/migrations/` en el **SQL Editor**.
 3. Copia la **Connection string** (modo **Transaction pooler**, puerto **6543**) desde *Project Settings → Database*.
 
 ### 2. Variables de entorno

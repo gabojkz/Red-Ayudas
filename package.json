@@ -15,6 +15,7 @@
     "db:down": "docker compose down",
     "db:wait": "node scripts/wait-for-db.js",
     "db:migrate": "node scripts/migrate.js",
+    "db:push": "supabase db push --linked",
     "db:seed": "node scripts/seed.js",
     "db:reset": "docker compose down -v && node scripts/setup-dev.mjs",
     "setup:dev": "node scripts/setup-dev.mjs"

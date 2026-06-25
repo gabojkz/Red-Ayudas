@@ -8,3 +8,12 @@ public/sw.js
 public/sw.js.map
 *.log
 .DS_Store
+
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
