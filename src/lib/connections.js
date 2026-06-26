@@ -28,6 +28,44 @@ export function connectionStats(needs, connections) {
   return { openNeeds, openOffers, activeConns, delivered, orphans, uncoordinated };
 }
 
+function normalizeSearch(text) {
+  return String(text ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** Texto indexable de una conexión para búsqueda libre. */
+export function connectionSearchText(conn, need, offer) {
+  const statusLabel = CONN_STATUS[conn.status]?.label ?? conn.status;
+  return [
+    statusLabel,
+    conn.notes,
+    need?.place,
+    need?.detail,
+    need?.contact,
+    need?.zone,
+    offer?.place,
+    offer?.detail,
+    offer?.contact,
+    offer?.zone,
+  ].filter(Boolean).join(" ");
+}
+
+export function filterConnectionsBySearch(connections, postsById, query) {
+  const q = normalizeSearch(query);
+  if (!q) return connections;
+  return connections.filter((conn) => {
+    const need = postsById.get(conn.needId);
+    const offer = postsById.get(conn.offerId);
+    if (!need || !offer) return false;
+    return normalizeSearch(connectionSearchText(conn, need, offer)).includes(q);
+  });
+}
+
+export { sortConnectionsByNeedUrgency } from "./priority.js";
+
 export function nextConnectionStatus(status) {
   if (status === "coordinando") return "en_transito";
   if (status === "en_transito") return "entregado";
@@ -76,6 +114,8 @@ export function buildConnectionsGeoJSON(connections, postsById) {
       const need = postsById.get(c.needId);
       const offer = postsById.get(c.offerId);
       if (!need || !offer) return null;
+      if (!Number.isFinite(need.lat) || !Number.isFinite(need.lng)) return null;
+      if (!Number.isFinite(offer.lat) || !Number.isFinite(offer.lng)) return null;
       const style = CONN_STATUS[c.status] || CONN_STATUS.coordinando;
       return {
         type: "Feature",

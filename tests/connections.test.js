@@ -8,6 +8,7 @@ import {
   getMatchCandidates,
   buildConnectionsGeoJSON,
   isActiveConnection,
+  filterConnectionsBySearch,
 } from "../src/lib/connections.js";
 
 const needs = [
@@ -83,5 +84,21 @@ describe("isActiveConnection", () => {
   it("excluye entregado y cancelado", () => {
     assert.equal(isActiveConnection(connections[0]), true);
     assert.equal(isActiveConnection(connections[1]), false);
+  });
+});
+
+describe("filterConnectionsBySearch", () => {
+  const byId = new Map(needs.map((n) => [n.id, n]));
+
+  it("filtra por lugar, contacto o notas", () => {
+    assert.equal(filterConnectionsBySearch(connections, byId, "").length, 2);
+    assert.equal(filterConnectionsBySearch(connections, byId, "la guaira").length, 1);
+    assert.equal(filterConnectionsBySearch(connections, byId, "botellas").length, 1);
+    assert.equal(filterConnectionsBySearch(connections, byId, "iniciada").length, 1);
+    assert.equal(filterConnectionsBySearch(connections, byId, "zzz").length, 0);
+  });
+
+  it("ignora acentos y mayúsculas", () => {
+    assert.equal(filterConnectionsBySearch(connections, byId, "GUaira").length, 1);
   });
 });

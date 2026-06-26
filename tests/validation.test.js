@@ -9,7 +9,10 @@ import {
   validateConnectionUpdate,
   validateConnectionId,
 } from "../src/lib/validation.js";
+import { getDraftValidationErrors, hasDraftLocation } from "../src/lib/validation.js";
 import { nearestZone, minutesAgo, timeAgoLabel, rowToNeed, rowToConnection } from "../src/lib/constants.js";
+
+const PHONE = "04145550101";
 
 describe("validateCreateNeed — reportes (pide)", () => {
   const valid = {
@@ -18,6 +21,7 @@ describe("validateCreateNeed — reportes (pide)", () => {
     urgency: "alta",
     place: "Hospital Vargas",
     detail: "Insulina",
+    contact: PHONE,
     lat: 10.49,
     lng: -66.90,
   };
@@ -81,14 +85,57 @@ describe("validateCreateNeed — reportes (pide)", () => {
     assert.equal(validateCreateNeed("texto").ok, false);
   });
 
-  it("asigna contacto por defecto", () => {
-    const r = validateCreateNeed(valid);
-    assert.equal(r.data.contact, "—");
+  it("rechaza teléfono ausente o inválido", () => {
+    assert.equal(validateCreateNeed(valid).ok, true);
+    assert.equal(validateCreateNeed({ ...valid, contact: "" }).ok, false);
+    assert.equal(validateCreateNeed({ ...valid, contact: "1234" }).ok, false);
+    assert.equal(validateCreateNeed({ ...valid, contact: "1234567" }).ok, true);
+    assert.ok(validateCreateNeed({ ...valid, contact: "" }).errors.some((e) => e.includes("teléfono")));
+  });
+
+  it("acepta teléfonos internacionales", () => {
+    assert.equal(validateCreateNeed({ ...valid, contact: "+57 300 123 4567" }).ok, true);
+    assert.equal(validateCreateNeed({ ...valid, contact: "+1 555 123 4567" }).ok, true);
+    assert.equal(validateCreateNeed({ ...valid, contact: "+58 414 555 0101" }).ok, true);
+    assert.equal(validateCreateNeed({ ...valid, contact: "+34 612 345 678" }).ok, true);
+    assert.equal(validateCreateNeed({ ...valid, contact: "+504 8765 4321" }).ok, true);
   });
 
   it("preserva contacto con espacios recortados", () => {
     const r = validateCreateNeed({ ...valid, contact: "  0414-555-0101  " });
     assert.equal(r.data.contact, "0414-555-0101");
+  });
+});
+
+describe("getDraftValidationErrors", () => {
+  it("lista campos faltantes", () => {
+    const errors = getDraftValidationErrors({
+      place: "",
+      detail: "",
+      contact: "",
+      lat: null,
+      lng: null,
+    });
+    assert.ok(errors.some((e) => e.includes("lugar")));
+    assert.ok(errors.some((e) => e.includes("descripción")));
+    assert.ok(errors.some((e) => e.toLowerCase().includes("teléfono")));
+  });
+
+  it("vacío cuando el borrador está listo", () => {
+    assert.deepEqual(getDraftValidationErrors({
+      place: "Hospital",
+      detail: "Insulina",
+      contact: PHONE,
+      lat: 10.49,
+      lng: -66.9,
+    }), []);
+  });
+});
+
+describe("hasDraftLocation", () => {
+  it("requiere lat y lng numéricos", () => {
+    assert.equal(hasDraftLocation({ lat: 10.49, lng: -66.9 }), true);
+    assert.equal(hasDraftLocation({ lat: 10.49, lng: null }), false);
   });
 });
 
@@ -98,6 +145,7 @@ describe("validateCreateNeed — ofertas (ofrece)", () => {
     urgency: "alta",
     place: "Salida Valencia",
     detail: "Camioneta 4x4 con 800 kg",
+    contact: PHONE,
     lat: 10.17,
     lng: -68.0,
   };
@@ -139,6 +187,7 @@ describe("validateCreateNeed — ofertas (ofrece)", () => {
       urgency: "alta",
       place: "Hospital",
       detail: "Insulina",
+      contact: PHONE,
       lat: 10.49,
       lng: -66.90,
     });
@@ -153,6 +202,7 @@ describe("validateCreateNeed — ofertas (ofrece)", () => {
       urgency: "critica",
       place: "Av. Soublette",
       detail: "Edificio colapsado",
+      contact: PHONE,
       lat: 10.599,
       lng: -66.93,
       meta: {
@@ -183,13 +233,24 @@ describe("validateCreateNeed — ofertas (ofrece)", () => {
 });
 
 describe("isDraftReady — formulario cliente", () => {
-  it("requiere lugar, detalle y coordenadas", () => {
+  it("requiere lugar, detalle, teléfono y coordenadas", () => {
     assert.equal(isDraftReady({
       place: "Hospital",
       detail: "Insulina",
+      contact: PHONE,
       lat: 10.49,
       lng: -66.9,
     }), true);
+  });
+
+  it("rechaza borrador sin teléfono", () => {
+    assert.equal(isDraftReady({
+      place: "Hospital",
+      detail: "Insulina",
+      contact: "",
+      lat: 10.49,
+      lng: -66.9,
+    }), false);
   });
 
   it("rechaza borrador sin ubicación en el mapa", () => {
@@ -225,6 +286,7 @@ describe("isDraftReady — formulario cliente", () => {
       type: "transporte",
       place: "Valencia",
       detail: "Pickup hacia La Guaira",
+      contact: PHONE,
       lat: 10.172,
       lng: -68.004,
     }), true);
@@ -253,6 +315,7 @@ describe("isDraftReady — formulario cliente", () => {
       type: "escombros",
       place: "Av. Soublette",
       detail: "Colapso",
+      contact: PHONE,
       lat: 10.599,
       lng: -66.93,
       meta: { equipos: ["Grúa", "Retroexcavadora"] },

@@ -3,20 +3,27 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Pill, Droplet, Utensils, LifeBuoy, Home, Package, Truck, HeartHandshake, HardHat,
-  Plus, X, MapPin, Clock, Check, AlertTriangle, ChevronLeft, Loader2,
-  Link2, ArrowRight, Globe, Radio, Zap, Code2,
+  Plus, X, MapPin, Clock, Check, AlertTriangle, ChevronLeft, ChevronRight, Loader2,
+  Link2, ArrowRight, Radio, Zap, Code2, Phone, Globe, PackageCheck, Search,
 } from "lucide-react";
 import Link from "next/link";
+import { mapLinks } from "@/lib/mapLinks";
 import { ESCOMBROS_EQUIPO, escombrosMetaChips, toggleEquipo, parseEquipos } from "@/lib/escombros";
 import dynamic from "next/dynamic";
 import {
   TYPES, URGENCY, STATUS, KIND, CONN_STATUS, ROLES, OFFER_TYPES, timeAgoLabel,
 } from "@/lib/constants";
 import { filterPosts } from "@/lib/filters";
-import { isDraftReady } from "@/lib/validation";
+import {
+  BOARD_PAGE_SIZE, paginateItems, findItemPage,
+} from "@/lib/pagination";
+import { isDraftReady, hasDraftLocation, getDraftValidationErrors, isValidPhoneContact, phoneTelHref, phoneWhatsAppHref, PHONE_PLACEHOLDER, buildWhatsAppContactMessage, buildWhatsAppConnectionMessage } from "@/lib/validation";
+import { MAP_CENTER } from "@/lib/mapLayers";
 import {
   connectionStats, countOrphanNeeds, getMatchCandidates, nextConnectionStatus,
   nextConnectionLabel, needHasCoverage, buildConnectionsGeoJSON, isActiveConnection,
+  filterConnectionsBySearch,
+  sortConnectionsByNeedUrgency,
 } from "@/lib/connections";
 import MapLinks from "@/components/MapLinks";
 import {
@@ -53,10 +60,14 @@ export default function RedDeAyuda() {
   const [mode, setMode] = useState("view");
   const [draft, setDraft] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
   const [offline, setOffline] = useState(false);
   const [cachedAt, setCachedAt] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [listPage, setListPage] = useState(1);
+  const [connSearch, setConnSearch] = useState("");
   const fetchGenRef = useRef(0);
+  const detailRef = useRef(null);
 
   const mergeNeeds = useCallback((updater) => {
     setNeeds((prev) => {
@@ -72,12 +83,20 @@ export default function RedDeAyuda() {
   }, [mergeNeeds]);
 
   const revealOnMap = useCallback((item) => {
+    const nextTypes = new Set(activeTypes);
+    nextTypes.add(item.type);
+    const filtered = filterPosts(needs, {
+      activeTypes: nextTypes,
+      kindFilter: "todos",
+      statusFilter: "activas",
+    });
     setKindFilter("todos");
     setStatusFilter("activas");
-    setActiveTypes((prev) => new Set([...prev, item.type]));
+    setActiveTypes(nextTypes);
+    setListPage(findItemPage(filtered, item.id));
     setSelectedId(item.id);
     setTab("mapa");
-  }, []);
+  }, [needs, activeTypes]);
 
   const applyConnections = useCallback((list) => {
     setConnections(list);
@@ -137,6 +156,7 @@ export default function RedDeAyuda() {
       setSelectedId(view.selectedId);
       if (view.kindFilter) setKindFilter(view.kindFilter);
       if (view.tab) setTab(view.tab);
+      if (view.listPage) setListPage(view.listPage);
     }
     const cached = loadNeedsSnapshot();
     const cachedConns = loadConnectionsSnapshot();
@@ -147,8 +167,18 @@ export default function RedDeAyuda() {
   }, []);
 
   useEffect(() => {
-    saveViewState({ activeTypes, statusFilter, selectedId, kindFilter, tab });
-  }, [activeTypes, statusFilter, selectedId, kindFilter, tab]);
+    saveViewState({ activeTypes, statusFilter, selectedId, kindFilter, tab, listPage });
+  }, [activeTypes, statusFilter, selectedId, kindFilter, tab, listPage]);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [activeTypes, kindFilter, statusFilter]);
+
+  useEffect(() => {
+    if (selectedId && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedId]);
 
   useEffect(() => {
     fetchAll();
@@ -181,16 +211,39 @@ export default function RedDeAyuda() {
     filterPosts(needs, { activeTypes, kindFilter, statusFilter }),
   [needs, activeTypes, statusFilter, kindFilter]);
 
+  const boardPage = useMemo(
+    () => paginateItems(visible, listPage, BOARD_PAGE_SIZE),
+    [visible, listPage]
+  );
+
+  const boardIds = useMemo(
+    () => new Set(boardPage.items.map((n) => n.id)),
+    [boardPage.items]
+  );
+
   const stats = useMemo(() => connectionStats(needs, connections), [needs, connections]);
   const orphanNeeds = useMemo(() => countOrphanNeeds(needs, connections), [needs, connections]);
 
-  const connectionsGeoJSON = useMemo(
-    () => buildConnectionsGeoJSON(connections, postsById),
-    [connections, postsById]
-  );
+  const filteredConnections = useMemo(() => {
+    const searched = filterConnectionsBySearch(connections, postsById, connSearch);
+    return sortConnectionsByNeedUrgency(searched, postsById);
+  }, [connections, postsById, connSearch]);
+
+  const connectionsGeoJSON = useMemo(() => {
+    const geo = buildConnectionsGeoJSON(connections, postsById);
+    if (!geo.features?.length) return geo;
+    return {
+      type: "FeatureCollection",
+      features: geo.features.filter((f) => {
+        const conn = connections.find((c) => c.id === f.properties?.id);
+        if (!conn) return false;
+        return boardIds.has(conn.needId) || boardIds.has(conn.offerId);
+      }),
+    };
+  }, [connections, postsById, boardIds]);
 
   const mapNeeds = useMemo(() =>
-    visible.map((n) => ({
+    boardPage.items.map((n) => ({
       ...n,
       color: TYPES[n.type].color,
       kindColor: KIND[n.kind]?.color,
@@ -198,17 +251,32 @@ export default function RedDeAyuda() {
       Icon: TYPE_ICONS[n.type],
       hasCoverage: needHasCoverage(n.id, connections),
     })),
-  [visible, connections]);
+  [boardPage.items, connections]);
+
+  const mapFitKey = useMemo(
+    () => `${boardPage.page}:${boardPage.items.map((n) => n.id).join(",")}`,
+    [boardPage.page, boardPage.items]
+  );
+
+  const goToPage = useCallback((nextPage) => {
+    const nextBoard = paginateItems(visible, nextPage, BOARD_PAGE_SIZE);
+    setListPage(nextBoard.page);
+    setSelectedId((id) => (
+      id && nextBoard.items.some((n) => n.id === id) ? id : null
+    ));
+  }, [visible]);
 
   const selected = needs.find((n) => n.id === selectedId) || null;
 
   const handleMapClick = (lat, lng) => {
     if (mode !== "report") return;
-    setDraft((d) => ({ ...(d || {}), lat, lng }));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setDraft((d) => ({ ...(d || {}), lat, lng, locationApprox: false }));
   };
 
   const startReport = () => {
     setSelectedId(null);
+    setFormError(null);
     setDraft({
       role: "solicitante",
       kind: "need",
@@ -217,15 +285,43 @@ export default function RedDeAyuda() {
       place: "",
       detail: "",
       contact: "",
-      lat: null,
-      lng: null,
+      lat: MAP_CENTER.lat,
+      lng: MAP_CENTER.lng,
+      locationApprox: true,
+    });
+    setMode("report");
+    setTab("mapa");
+  };
+
+  const startOfferForNeed = (need) => {
+    const offerType = OFFER_TYPES.includes(need.type) ? need.type : "otros";
+    setSelectedId(need.id);
+    setFormError(null);
+    setDraft({
+      role: "oferente",
+      kind: "offer",
+      type: offerType,
+      urgency: "alta",
+      place: "",
+      detail: "",
+      contact: "",
+      lat: MAP_CENTER.lat,
+      lng: MAP_CENTER.lng,
+      locationApprox: true,
+      targetNeedId: need.id,
+      targetNeedLabel: `${need.place} · ${need.zone}`,
     });
     setMode("report");
     setTab("mapa");
   };
 
   const publish = async () => {
-    if (!draft || !isDraftReady(draft)) return;
+    const validationErrors = getDraftValidationErrors(draft);
+    if (validationErrors.length) {
+      setFormError(validationErrors.join(" "));
+      return;
+    }
+    setFormError(null);
     setSubmitting(true);
     const finishPublish = (need) => {
       fetchGenRef.current++;
@@ -264,23 +360,38 @@ export default function RedDeAyuda() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.errors?.join(", ") || "Error al publicar");
+        const msg = data.errors?.join(", ")
+          || data.error
+          || `No se pudo publicar (error ${res.status})`;
+        throw new Error(msg);
       }
       const { need } = await res.json();
+      const targetNeedId = draft.targetNeedId;
       finishPublish(need);
+      if (targetNeedId && need.kind === "offer") {
+        const targetNeed = needs.find((n) => n.id === targetNeedId);
+        if (targetNeed) await handleConnect(targetNeed, need);
+      }
       fetchAll();
     } catch (err) {
       if (!isOnline()) {
-        const { need, needs: next, pendingCount: pending } = createOfflineReport(draft, needs);
-        fetchGenRef.current++;
-        applyNeeds(next);
-        setPendingCount(pending);
-        setOffline(true);
-        revealOnMap(need);
-        setMode("view");
-        setDraft(null);
+        try {
+          const { need, needs: next, pendingCount: pending } = createOfflineReport(draft, needs);
+          fetchGenRef.current++;
+          applyNeeds(next);
+          setPendingCount(pending);
+          setOffline(true);
+          revealOnMap(need);
+          setMode("view");
+          setDraft(null);
+          setFormError(null);
+        } catch (offlineErr) {
+          setFormError(offlineErr.message || "No se pudo guardar el reporte offline.");
+        }
       } else {
-        setError(err.message || "No se pudo publicar");
+        const msg = err?.message || "No se pudo publicar. Revisa la conexión o la base de datos.";
+        setFormError(msg);
+        setError(msg);
       }
     } finally {
       setSubmitting(false);
@@ -349,21 +460,6 @@ export default function RedDeAyuda() {
     }
   };
 
-  const assignCoordinator = async (connId) => {
-    try {
-      const res = await fetch(`/api/connections/${connId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coordinatorRemote: true }),
-      });
-      if (!res.ok) throw new Error();
-      const { connection } = await res.json();
-      applyConnections(connections.map((c) => (c.id === connId ? connection : c)));
-    } catch {
-      setError("No se pudo asignar coordinador");
-    }
-  };
-
   return (
     <div className="rda-root">
       <style>{CSS}</style>
@@ -382,11 +478,22 @@ export default function RedDeAyuda() {
           <Stat n={stats.activeConns} label="conexiones" accent="#2563EB" />
           <Stat n={stats.delivered} label="entregados" accent="#6B7280" />
         </div>
+        <Link href="/recursos" className="rda-dev-link" title="Desaparecidos y otros recursos">
+          <Link2 size={14} strokeWidth={2.4} /> Recursos
+        </Link>
         <Link href="/docs/api" className="rda-dev-link" title="Feed público para desarrolladores">
           <Code2 size={14} strokeWidth={2.4} /> Feed
         </Link>
-        <button className="rda-cta" onClick={startReport}>
-          <Plus size={15} strokeWidth={2.6} /> Publicar
+        <button
+          type="button"
+          className="rda-cta"
+          onClick={mode === "report" ? publish : startReport}
+          disabled={mode === "report" && submitting}
+        >
+          <Plus size={15} strokeWidth={2.6} />
+          {mode === "report"
+            ? (submitting ? "Publicando…" : "Enviar reporte")
+            : "Publicar"}
         </button>
       </header>
 
@@ -448,54 +555,65 @@ export default function RedDeAyuda() {
                   <div className="rda-map-loading"><Loader2 size={28} className="rda-spin" /> Cargando…</div>
                 ) : (
                   <LibreMap
-                    key={mapNeeds.map((n) => n.id).join("-")}
                     needs={mapNeeds}
                     connectionsGeoJSON={connectionsGeoJSON}
                     selectedId={selectedId}
-                    draftLatLng={draft?.lat != null ? { lat: draft.lat, lng: draft.lng } : null}
+                    draftLatLng={hasDraftLocation(draft) ? { lat: Number(draft.lat), lng: Number(draft.lng) } : null}
                     reportMode={mode === "report"}
                     onMapClick={handleMapClick}
                     onPinClick={(id) => { setSelectedId(id); setMode("view"); }}
+                    fitBoundsKey={mode === "report" ? null : mapFitKey}
                   />
                 )}
                 {mode === "report" && (
                   <div className="rda-map-banner">
-                    {draft?.lat == null
+                    {!hasDraftLocation(draft)
                       ? "Toca el mapa para ubicar el reporte"
-                      : "Ubicación marcada — toca de nuevo para ajustar"}
+                      : draft?.locationApprox
+                        ? "Ubicación aproximada — toca el mapa para ajustar el punto exacto"
+                        : "Ubicación marcada — toca de nuevo para ajustar"}
                   </div>
                 )}
               </div>
               <p className="rda-note"><AlertTriangle size={11} /> Líneas = conexiones activas · pines tenues = ya tienen cobertura</p>
+              {mode !== "report" && (
+                <BoardPagination boardPage={boardPage} onPageChange={goToPage} />
+              )}
             </div>
 
             <aside className="rda-side">
               {mode === "report" ? (
                 <ReportForm draft={draft} setDraft={setDraft} onPublish={publish} submitting={submitting}
-                  onCancel={() => { setMode("view"); setDraft(null); }}
-                  onGoConnections={() => { setMode("view"); setDraft(null); setTab("conexiones"); }} />
+                  formError={formError}
+                  onClearError={() => setFormError(null)}
+                  onCancel={() => { setMode("view"); setDraft(null); setFormError(null); }} />
               ) : (
                 <>
                   {selected && (
                     <DetailPanel
+                      ref={detailRef}
                       item={selected}
                       needs={needsList}
                       offers={offersList}
                       connections={connections}
                       onClose={() => setSelectedId(null)}
                       onConnect={handleConnect}
+                      onOfferHelp={startOfferForNeed}
                       onAdvanceConn={advanceConnection}
-                      onAssignCoordinator={assignCoordinator}
                     />
                   )}
-                  <div className="rda-list">
+                  <div className={`rda-list ${selected ? "has-detail" : ""}`}>
                     {loading && <div className="rda-empty">Cargando…</div>}
-                    {!loading && visible.length === 0 && (
+                    {!loading && boardPage.total === 0 && (
                       <div className="rda-empty">Sin resultados con estos filtros.</div>
                     )}
-                    {visible.map((n) => (
+                    {!loading && boardPage.total > 0 && (
+                      <BoardPagination boardPage={boardPage} onPageChange={goToPage} />
+                    )}
+                    {boardPage.items.map((n) => (
                       <ItemCard key={n.id} item={n} selected={n.id === selectedId}
                         connections={connections}
+                        onOfferHelp={startOfferForNeed}
                         onClick={() => setSelectedId(n.id === selectedId ? null : n.id)} />
                     ))}
                   </div>
@@ -508,7 +626,30 @@ export default function RedDeAyuda() {
         <div className="rda-conn-page">
           <div className="rda-conn-header">
             <h2 className="rda-conn-title">Conexiones activas</h2>
-            <p className="rda-conn-sub">Cada conexión enlaza una necesidad con una oferta. Avanza el estado cuando haya novedades.</p>
+            <p className="rda-conn-sub">Cada conexión enlaza una necesidad con una oferta. Usa los contactos para coordinar y avanza el estado cuando haya novedades.</p>
+            {connections.length > 0 && (
+              <label className="rda-conn-search">
+                <Search size={15} aria-hidden />
+                <input
+                  type="search"
+                  className="rda-conn-search-input"
+                  placeholder="Buscar por lugar, contacto, teléfono o notas…"
+                  value={connSearch}
+                  onChange={(e) => setConnSearch(e.target.value)}
+                  aria-label="Buscar conexiones"
+                />
+                {connSearch && (
+                  <button
+                    type="button"
+                    className="rda-conn-search-clear"
+                    onClick={() => setConnSearch("")}
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </label>
+            )}
           </div>
           {orphanNeeds > 0 && (
             <div className="rda-orphan-banner">
@@ -517,25 +658,56 @@ export default function RedDeAyuda() {
               <button type="button" className="rda-btn rda-btn-sm rda-btn-outline" onClick={() => setTab("mapa")}>Ir al mapa</button>
             </div>
           )}
-          {connections.filter(isActiveConnection).filter((c) => !c.coordinatorRemote).length > 0 && (
-            <div className="rda-coord-banner">
-              <Globe size={14} />
-              <span>Conexiones sin coordinador remoto — la diáspora puede gestionarlas desde fuera.</span>
-            </div>
-          )}
           <div className="rda-conn-grid">
             {connections.length === 0 && (
               <div className="rda-empty" style={{ gridColumn: "1 / -1" }}>
                 No hay conexiones aún. Selecciona una necesidad y conéctala a una oferta compatible.
               </div>
             )}
-            {connections.map((c) => (
+            {connections.length > 0 && filteredConnections.length === 0 && (
+              <div className="rda-empty" style={{ gridColumn: "1 / -1" }}>
+                Sin resultados para «{connSearch}». Prueba con otro lugar, contacto o nota.
+              </div>
+            )}
+            {filteredConnections.map((c) => (
               <ConnectionCard key={c.id} conn={c} needs={needsList} offers={offersList}
-                onAdvance={advanceConnection} onAssignCoordinator={assignCoordinator} />
+                onAdvance={advanceConnection} />
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function BoardPagination({ boardPage, onPageChange }) {
+  if (boardPage.total <= boardPage.pageSize) return null;
+  return (
+    <div className="rda-pagination" role="navigation" aria-label="Paginación del mapa">
+      <button
+        type="button"
+        className="rda-page-btn"
+        disabled={boardPage.page <= 1}
+        onClick={() => onPageChange(boardPage.page - 1)}
+        aria-label="Página anterior"
+      >
+        <ChevronLeft size={14} /> Anterior
+      </button>
+      <span className="rda-page-info">
+        Página <b>{boardPage.page}</b> de <b>{boardPage.pages}</b>
+        <span className="rda-page-count">
+          · {boardPage.start}–{boardPage.end} de {boardPage.total}
+        </span>
+      </span>
+      <button
+        type="button"
+        className="rda-page-btn"
+        disabled={boardPage.page >= boardPage.pages}
+        onClick={() => onPageChange(boardPage.page + 1)}
+        aria-label="Página siguiente"
+      >
+        Siguiente <ChevronRight size={14} />
+      </button>
     </div>
   );
 }
@@ -563,139 +735,247 @@ function KindPill({ kind }) {
 
 function ConnStatusBadge({ status }) {
   const s = CONN_STATUS[status];
-  return <Badge color={s.color} bg={s.bg}>{s.label}</Badge>;
+  const Icon = status === "en_transito" ? Truck : status === "entregado" ? PackageCheck : Link2;
+  return (
+    <span className="rda-conn-status-pill" style={{ color: s.color, background: s.bg }}>
+      <Icon size={13} strokeWidth={2.2} aria-hidden /> {s.label}
+    </span>
+  );
 }
 
-function ConnectionCard({ conn, needs, offers, onAdvance, onAssignCoordinator }) {
+function connFlowName(item) {
+  const place = item.place?.trim() || "—";
+  const detail = item.detail?.trim();
+  if (!detail) return place;
+  const suffix = detail.length > 48 ? `${detail.slice(0, 48)}…` : detail;
+  return `${place} — ${suffix}`;
+}
+
+function ConnectionCard({ conn, needs, offers, onAdvance }) {
   const need = needs.find((n) => n.id === conn.needId);
   const offer = offers.find((o) => o.id === conn.offerId);
   if (!need || !offer) return null;
-  const nt = TYPES[need.type]; const ot = TYPES[offer.type];
-  const NIcon = TYPE_ICONS[need.type]; const OIcon = TYPE_ICONS[offer.type];
+  const statusStyle = CONN_STATUS[conn.status] || CONN_STATUS.coordinando;
   const next = nextConnectionStatus(conn.status);
   const nextLabel = nextConnectionLabel(conn.status);
+  const directions = mapLinks(need.lat, need.lng, need.place);
+  const whatsappMessage = buildWhatsAppConnectionMessage({ need, offer });
 
   return (
-    <div className="rda-conn">
-      <div className="rda-conn-row">
-        <span className="rda-conn-pin" style={{ background: nt.color }}><NIcon size={12} color="#fff" strokeWidth={2.5} /></span>
-        <span className="rda-conn-place">{need.place}</span>
-        <ArrowRight size={13} color="#9CA3AF" />
-        <span className="rda-conn-pin" style={{ background: ot.color }}><OIcon size={12} color="#fff" strokeWidth={2.5} /></span>
-        <span className="rda-conn-place">{offer.place}</span>
-      </div>
-      <div className="rda-conn-meta">
+    <div className="rda-conn" style={{ borderTopColor: statusStyle.color }}>
+      <div className="rda-conn-status-row">
         <ConnStatusBadge status={conn.status} />
-        {conn.coordinatorRemote && (
-          <span className="rda-remote-badge"><Globe size={10} /> Coordinador remoto</span>
-        )}
-        <span className="rda-time"><Clock size={10} /> {timeAgoLabel(conn.mins)}</span>
+        <span className="rda-conn-ts"><Clock size={12} aria-hidden /> {timeAgoLabel(conn.mins)}</span>
       </div>
-      {conn.notes && <p className="rda-conn-notes">{conn.notes}</p>}
-      <div className="rda-conn-actions">
+
+      <div className="rda-conn-flow">
+        <div className="rda-conn-flow-node need">
+          <div className="rda-conn-flow-label">Necesita</div>
+          <div className="rda-conn-flow-name">{connFlowName(need)}</div>
+        </div>
+        <div className="rda-conn-flow-arrow" aria-hidden>
+          <ArrowRight size={14} color="#9CA3AF" />
+        </div>
+        <div className="rda-conn-flow-node offer">
+          <div className="rda-conn-flow-label">Ofrece</div>
+          <div className="rda-conn-flow-name">{connFlowName(offer)}</div>
+        </div>
+      </div>
+
+      {conn.notes && <p className="rda-conn-note">{conn.notes}</p>}
+
+      <div className="rda-conn-contacts">
+        <ContactBlock label="Quien necesita" value={need.contact} whatsappMessage={whatsappMessage} />
+        <ContactBlock label="Quien ofrece" value={offer.contact} whatsappMessage={whatsappMessage} />
+      </div>
+
+      <div className="rda-conn-divider" />
+
+      <div className="rda-conn-footer">
         {next && conn.status !== "entregado" && conn.status !== "cancelado" && (
-          <button type="button" className="rda-btn rda-btn-sm rda-btn-outline" onClick={() => onAdvance(conn.id, next)}>
-            <Check size={12} /> {nextLabel}
+          <button type="button" className="rda-conn-btn-primary" onClick={() => onAdvance(conn.id, next)}>
+            <Check size={13} strokeWidth={2.4} aria-hidden /> {nextLabel}
           </button>
         )}
-        {!conn.coordinatorRemote && isActiveConnection(conn) && (
-          <button type="button" className="rda-btn rda-btn-sm rda-btn-blue" onClick={() => onAssignCoordinator(conn.id)}>
-            <Globe size={12} /> Asignarme como coordinador
-          </button>
+        {conn.coordinatorRemote && (
+          <span className="rda-conn-remote">
+            <Globe size={12} aria-hidden /> Coordinador remoto
+          </span>
         )}
+        <a className="rda-conn-btn-ghost" href={directions.google} target="_blank" rel="noopener noreferrer">
+          <MapPin size={13} aria-hidden /> Cómo llegar
+        </a>
       </div>
     </div>
   );
 }
 
-function ItemCard({ item, selected, onClick, connections }) {
+function ContactBlock({ label, value, whatsappMessage }) {
+  const text = value?.trim() || "—";
+  const tel = phoneTelHref(text);
+  const wa = phoneWhatsAppHref(text, whatsappMessage);
+  const hasPhone = Boolean(tel || wa);
+
+  return (
+    <div className="rda-conn-contact">
+      <div className="rda-conn-contact-role">{label}</div>
+      <div className="rda-conn-contact-value">{text}</div>
+      {hasPhone && (
+        <div className="rda-contact-actions">
+          {tel && (
+            <a className="rda-contact-btn" href={tel}>
+              <Phone size={13} aria-hidden /> Llamar
+            </a>
+          )}
+          {wa && (
+            <a className="rda-contact-btn rda-contact-btn-wa" href={wa} target="_blank" rel="noopener noreferrer">
+              WhatsApp
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemCard({ item, selected, onClick, connections, onOfferHelp }) {
   const t = TYPES[item.type]; const Icon = TYPE_ICONS[item.type];
   const u = URGENCY[item.urgency];
   const covered = needHasCoverage(item.id, connections) ||
     connections.some((c) => c.offerId === item.id && isActiveConnection(c));
+  const canOffer = item.kind === "need" && item.status !== "cubierto" && !covered;
 
   return (
-    <button type="button" className={`rda-card ${selected ? "sel" : ""} ${covered ? "covered" : ""}`}
-      style={selected ? { borderColor: t.color } : undefined} onClick={onClick}>
-      <span className="rda-card-ic" style={{ background: t.color, opacity: covered ? 0.7 : 1 }}>
-        <Icon size={15} strokeWidth={2.5} color="#fff" />
-      </span>
-      <span className="rda-card-main">
-        <span className="rda-card-top">
-          <KindPill kind={item.kind} />
-          {covered && <span className="rda-covered-label"><Link2 size={10} /> con cobertura</span>}
+    <article
+      className={`rda-card ${selected ? "sel" : ""} ${covered ? "covered" : ""}`}
+      style={selected ? { borderColor: t.color, boxShadow: `0 0 0 2px ${t.color}33` } : undefined}
+    >
+      <button type="button" className="rda-card-hit" onClick={onClick}>
+        <span className="rda-card-ic" style={{ background: t.color, opacity: covered ? 0.7 : 1 }}>
+          <Icon size={15} strokeWidth={2.5} color="#fff" />
         </span>
-        <b className="rda-card-place">{item.place}</b>
-        <span className="rda-card-detail">{item.detail}</span>
-        <span className="rda-card-meta">
-          {item.kind === "need" && <Badge color={u.color}>{u.label}</Badge>}
-          {item.type === "escombros" && <MetaChips meta={item.meta} />}
-          <span className="rda-zone"><MapPin size={10} /> {item.zone}</span>
-          <span className="rda-time"><Clock size={10} /> {timeAgoLabel(item.mins)}</span>
+        <span className="rda-card-main">
+          <span className="rda-card-top">
+            <KindPill kind={item.kind} />
+            {selected && <span className="rda-card-viewing">Viendo ahora</span>}
+            {covered && <span className="rda-covered-label"><Link2 size={10} /> con cobertura</span>}
+          </span>
+          <b className="rda-card-place">{item.place}</b>
+          <span className="rda-card-detail">{item.detail}</span>
+          <span className="rda-card-meta">
+            {item.kind === "need" && <Badge color={u.color}>{u.label}</Badge>}
+            {item.type === "escombros" && <MetaChips meta={item.meta} />}
+            <span className="rda-zone"><MapPin size={10} /> {item.zone}</span>
+            <span className="rda-time"><Clock size={10} /> {timeAgoLabel(item.mins)}</span>
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+      {canOffer && (
+        <button
+          type="button"
+          className="rda-card-offer"
+          onClick={() => onOfferHelp(item)}
+        >
+          <HeartHandshake size={13} strokeWidth={2.4} /> Ofrecer ayuda
+        </button>
+      )}
+    </article>
   );
 }
 
-function DetailPanel({ item, needs, offers, connections, onClose, onConnect, onAdvanceConn, onAssignCoordinator }) {
+const DetailPanel = React.forwardRef(function DetailPanel(
+  { item, needs, offers, connections, onClose, onConnect, onOfferHelp, onAdvanceConn },
+  ref
+) {
   const t = TYPES[item.type]; const Icon = TYPE_ICONS[item.type];
+  const u = item.kind === "need" ? URGENCY[item.urgency] : null;
   const relConns = connections.filter((c) => c.needId === item.id || c.offerId === item.id);
   const candidates = getMatchCandidates(item, needs, offers, connections);
+  const covered = item.kind === "need" && needHasCoverage(item.id, connections);
+  const canOffer = item.kind === "need" && item.status !== "cubierto" && !covered;
 
   return (
-    <div className="rda-detail" style={{ borderTopColor: t.color }}>
-      <div className="rda-detail-head">
-        <span className="rda-card-ic" style={{ background: t.color }}><Icon size={15} strokeWidth={2.5} color="#fff" /></span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <KindPill kind={item.kind} />
-            <span className="rda-zone"><MapPin size={10} /> {item.zone}</span>
-          </div>
-          <b style={{ fontSize: 14, display: "block", marginTop: 3 }}>{item.place}</b>
-        </div>
-        <button type="button" className="rda-x" onClick={onClose}><X size={15} /></button>
+    <div className="rda-detail-wrap" ref={ref}>
+      <div className="rda-detail-banner">
+        <span className="rda-detail-banner-label">
+          <span className="rda-detail-dot" style={{ background: t.color }} />
+          Detalle · {KIND[item.kind].label} · {t.label}
+        </span>
+        <button type="button" className="rda-detail-close" onClick={onClose}>
+          <X size={14} /> Cerrar
+        </button>
       </div>
-      <p className="rda-detail-body">{item.detail}</p>
-      {item.type === "escombros" && item.meta && (
-        <div className="rda-detail-meta-block"><MetaChips meta={item.meta} /></div>
-      )}
-      <div className="rda-detail-contact"><b>Contacto:</b> {item.contact}</div>
-      <MapLinks lat={item.lat} lng={item.lng} label={item.place} />
-
-      {relConns.length > 0 && (
-        <div className="rda-detail-section">
-          <h4 className="rda-section-title"><Link2 size={12} /> Conexiones</h4>
-          {relConns.map((c) => (
-            <ConnectionCard key={c.id} conn={c} needs={needs} offers={offers}
-              onAdvance={onAdvanceConn} onAssignCoordinator={onAssignCoordinator} />
-          ))}
-        </div>
-      )}
-
-      {candidates.length > 0 && (
-        <div className="rda-detail-section">
-          <h4 className="rda-section-title">
-            {item.kind === "need" ? "Ofertas que pueden cubrir esto" : "Necesidades que puedo cubrir"}
-          </h4>
-          {candidates.slice(0, 3).map((m) => (
-            <div key={m.id} className="rda-match-row">
-              <span className="rda-match-label">
-                <span className="rda-conn-pin" style={{ background: TYPES[m.type].color }}>
-                  {(() => { const MI = TYPE_ICONS[m.type]; return <MI size={10} color="#fff" strokeWidth={2.5} />; })()}
-                </span>
-                {m.place}
-              </span>
-              <button type="button" className="rda-btn rda-btn-sm rda-btn-blue" onClick={() => onConnect(item, m)}>
-                Conectar
-              </button>
+      <div className="rda-detail" style={{ borderLeftColor: t.color }}>
+        <div className="rda-detail-head">
+          <span className="rda-card-ic" style={{ background: t.color }}>
+            <Icon size={15} strokeWidth={2.5} color="#fff" />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <KindPill kind={item.kind} />
+              {u && <Badge color={u.color}>{u.label}</Badge>}
+              <span className="rda-zone"><MapPin size={10} /> {item.zone}</span>
             </div>
-          ))}
+            <b className="rda-detail-title">{item.place}</b>
+          </div>
         </div>
-      )}
+        <p className="rda-detail-body">{item.detail}</p>
+        {item.type === "escombros" && item.meta && (
+          <div className="rda-detail-meta-block"><MetaChips meta={item.meta} /></div>
+        )}
+        <div className="rda-detail-contact-block">
+          <ContactBlock
+            label="Contacto para coordinar"
+            value={item.contact}
+            whatsappMessage={buildWhatsAppContactMessage({
+              place: item.place,
+              detail: item.detail,
+              label: item.kind === "need" ? "la necesidad" : "la oferta",
+            })}
+          />
+        </div>
+        <MapLinks lat={item.lat} lng={item.lng} label={item.place} />
+
+        {canOffer && (
+          <button type="button" className="rda-btn rda-btn-offer" onClick={() => onOfferHelp(item)}>
+            <HeartHandshake size={15} strokeWidth={2.4} /> Ofrecer ayuda para esto
+          </button>
+        )}
+
+        {relConns.length > 0 && (
+          <div className="rda-detail-section">
+            <h4 className="rda-section-title"><Link2 size={12} /> Conexiones</h4>
+            {relConns.map((c) => (
+              <ConnectionCard key={c.id} conn={c} needs={needs} offers={offers}
+                onAdvance={onAdvanceConn} />
+            ))}
+          </div>
+        )}
+
+        {candidates.length > 0 && (
+          <div className="rda-detail-section">
+            <h4 className="rda-section-title">
+              {item.kind === "need" ? "Ofertas que pueden cubrir esto" : "Necesidades que puedo cubrir"}
+            </h4>
+            {candidates.slice(0, 3).map((m) => (
+              <div key={m.id} className="rda-match-row">
+                <span className="rda-match-label">
+                  <span className="rda-conn-pin" style={{ background: TYPES[m.type].color }}>
+                    {(() => { const MI = TYPE_ICONS[m.type]; return <MI size={10} color="#fff" strokeWidth={2.5} />; })()}
+                  </span>
+                  {m.place}
+                </span>
+                <button type="button" className="rda-btn rda-btn-sm rda-btn-blue" onClick={() => onConnect(item, m)}>
+                  Conectar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
-}
+});
 
 function MetaChips({ meta }) {
   const chips = escombrosMetaChips(meta);
@@ -761,27 +1041,46 @@ function EscombrosFields({ draft, set }) {
   );
 }
 
-function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, onGoConnections }) {
-  const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
-  const isCoord = draft.role === "coordinador";
+function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, formError, onClearError }) {
+  const set = (k, v) => {
+    onClearError?.();
+    setDraft((d) => ({ ...d, [k]: v }));
+  };
   const isEscombros = draft.type === "escombros";
   const ready = isDraftReady(draft);
+  const located = hasDraftLocation(draft);
+  const blocking = getDraftValidationErrors(draft);
+  const formErrRef = useRef(null);
+
+  useEffect(() => {
+    if (formError && formErrRef.current) {
+      formErrRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [formError]);
 
   const setRole = (role) => {
+    onClearError?.();
     const kind = ROLES[role]?.kind || "need";
     setDraft((d) => ({ ...d, role, kind }));
+  };
+
+  const handlePublishClick = () => {
+    onPublish();
   };
 
   return (
     <div className="rda-form">
       <div className="rda-form-head">
         <button type="button" className="rda-back" onClick={onCancel}><ChevronLeft size={15} /> Volver</button>
-        <h2>Nuevo reporte</h2>
+        <h2>{draft.targetNeedId ? "Ofrecer ayuda" : "Nuevo reporte"}</h2>
+        {draft.targetNeedLabel && (
+          <p className="rda-form-context">Respondiendo a: <b>{draft.targetNeedLabel}</b></p>
+        )}
       </div>
 
       <label className="rda-label">Soy…</label>
       <div className="rda-role-grid">
-        {Object.entries(ROLES).map(([k, r]) => (
+        {Object.entries(ROLES).filter(([k]) => k !== "coordinador").map(([k, r]) => (
           <button key={k} type="button" className={`rda-role-btn ${draft.role === k ? "on" : ""}`}
             style={draft.role === k ? { borderColor: r.color, background: r.color + "10", color: r.color } : undefined}
             onClick={() => setRole(k)}>
@@ -791,14 +1090,6 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, onGoConn
         ))}
       </div>
 
-      {isCoord ? (
-        <div className="rda-coord-info">
-          <Globe size={18} />
-          <p>Como coordinador remoto gestionas conexiones existentes — no publicas recursos propios.</p>
-          <button type="button" className="rda-btn rda-btn-blue" onClick={onGoConnections}>Ver conexiones sin gestionar</button>
-        </div>
-      ) : (
-        <>
           <label className="rda-label">Tipo</label>
           <div className="rda-type-grid">
             {(draft.kind === "offer" ? OFFER_TYPES : Object.keys(TYPES).filter((k) => k !== "transporte" && k !== "voluntario")).map((k) => {
@@ -843,33 +1134,55 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, onGoConn
               : (draft.kind === "need" ? "Qué se necesita y cuánto" : "Qué tienes disponible y desde dónde")}
             value={draft.detail || ""} onChange={(e) => set("detail", e.target.value)} />
 
-          <label className="rda-label">Contacto / punto de entrega</label>
-          <input className="rda-input" placeholder="WhatsApp, nombre, dirección…"
+          <label className="rda-label">Teléfono / WhatsApp <span className="rda-req">*</span></label>
+          <input className="rda-input" type="tel" inputMode="tel" autoComplete="tel"
+            placeholder={PHONE_PLACEHOLDER}
             value={draft.contact || ""} onChange={(e) => set("contact", e.target.value)} />
 
           <div className="rda-loc-row">
             <label className="rda-label" style={{ margin: 0 }}>Ubicación en el mapa</label>
-            <div className={`rda-loc ${draft.lat == null ? "empty" : ""}`}>
+            <div className={`rda-loc ${!located ? "empty" : ""}`}>
               <MapPin size={13} />
-              {draft.lat == null ? "Toca el mapa para ubicar" : `${draft.lat.toFixed(3)}, ${draft.lng.toFixed(3)}`}
+              {!located
+                ? "Toca el mapa para ubicar"
+                : draft.locationApprox
+                  ? `${Number(draft.lat).toFixed(3)}, ${Number(draft.lng).toFixed(3)} (aprox.)`
+                  : `${Number(draft.lat).toFixed(3)}, ${Number(draft.lng).toFixed(3)}`}
             </div>
           </div>
 
+          {(formError || (!ready && blocking.length > 0)) && (
+            <div className="rda-form-err" ref={formErrRef} role="alert">
+              <AlertTriangle size={14} aria-hidden />
+              <div>
+                {formError ? (
+                  <p className="rda-form-err-title">{formError}</p>
+                ) : (
+                  <>
+                    <p className="rda-form-err-title">Completa lo siguiente para publicar:</p>
+                    <ul className="rda-form-err-list">
+                      {blocking.map((msg) => <li key={msg}>{msg}</li>)}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="rda-form-actions">
             <button type="button" className="rda-btn rda-btn-ghost" onClick={onCancel}>Cancelar</button>
-            <button type="button" className="rda-btn rda-btn-primary" disabled={!ready || submitting} onClick={onPublish}>
-              {submitting ? "Publicando…" : "Publicar"}
+            <button
+              type="button"
+              className={`rda-btn rda-btn-primary ${!ready && !submitting ? "rda-btn-attention" : ""}`}
+              disabled={submitting}
+              onClick={handlePublishClick}
+            >
+              {submitting ? "Publicando…" : draft.targetNeedId ? "Publicar oferta y conectar" : "Publicar"}
             </button>
           </div>
-          {!ready && (
-            <p className="rda-hint">
-              {isEscombros && !parseEquipos(draft.meta).length
-                ? "Selecciona al menos un tipo de equipo y completa lugar, descripción y mapa."
-                : "Completa lugar, descripción y ubica en el mapa."}
-            </p>
+          {ready && !formError && (
+            <p className="rda-hint rda-hint-ok">Listo para publicar.</p>
           )}
-        </>
-      )}
     </div>
   );
 }
@@ -910,13 +1223,27 @@ const CSS = `
 @keyframes rda-spin{to{transform:rotate(360deg)}}
 .rda-map-banner{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:#1A2233dd;color:#fff;font-size:12px;font-weight:650;padding:7px 14px;border-radius:20px;white-space:nowrap;z-index:10;pointer-events:none}
 .rda-note{font-size:11px;color:#8A93A0;display:flex;align-items:center;gap:4px;margin:8px 2px 0}
+.rda-pagination{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#fff;border-top:1px solid #E9EBEF;flex-wrap:wrap}
+.rda-page-btn{display:inline-flex;align-items:center;gap:4px;border:1px solid #CBD5E1;background:#fff;color:#1A2233;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer}
+.rda-page-btn:hover:not(:disabled){background:#F8FAFC}
+.rda-page-btn:disabled{opacity:.45;cursor:not-allowed}
+.rda-page-info{font-size:12px;color:#5B6675;text-align:center;flex:1;min-width:0}
+.rda-page-info b{color:#1A2233}
+.rda-page-count{color:#9CA3AF}
+.rda-list .rda-pagination{border:1px solid #E9EBEF;border-radius:10px;margin-bottom:8px;background:#FAFBFC}
 .rda-side{flex:1;min-width:290px;max-width:410px;border-left:1px solid #E6E8EC;background:#fff;display:flex;flex-direction:column;overflow:hidden}
 .rda-list{overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.rda-list.has-detail .rda-card:not(.sel){opacity:.55}
 .rda-empty{text-align:center;color:#9AA2AD;font-size:13px;padding:32px 16px;line-height:1.6}
-.rda-card{display:flex;gap:10px;text-align:left;background:#fff;border:1.5px solid #E9EBEF;border-radius:11px;padding:11px;cursor:pointer;width:100%;transition:.1s}
+.rda-card{display:flex;flex-direction:column;text-align:left;background:#fff;border:1.5px solid #E9EBEF;border-radius:11px;overflow:hidden;transition:.12s}
 .rda-card:hover{border-color:#C8CDD5}
-.rda-card.sel{border-color:#1A2233}
+.rda-card.sel{border-width:2px;background:#FAFCFF}
 .rda-card.covered{opacity:.65}
+.rda-card-hit{display:flex;gap:10px;text-align:left;background:none;border:none;padding:11px;cursor:pointer;width:100%;font:inherit;color:inherit}
+.rda-card-hit:hover{background:#F8F9FB}
+.rda-card-viewing{font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:20px;background:#1A2233;color:#fff}
+.rda-card-offer{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;border:none;border-top:1px solid #E9EBEF;background:#ECFDF5;color:#065F46;padding:9px 11px;font-size:12.5px;font-weight:700;cursor:pointer}
+.rda-card-offer:hover{background:#D1FAE5}
 .rda-card-ic{flex-shrink:0;width:32px;height:32px;border-radius:8px;display:grid;place-items:center}
 .rda-card-main{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 .rda-card-top{display:flex;align-items:center;gap:6px}
@@ -929,40 +1256,78 @@ const CSS = `
 .rda-card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .rda-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
 .rda-zone,.rda-time{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#9AA2AD}
-.rda-detail{padding:13px;border-top:3px solid;border-bottom:1px solid #EDEEF1;background:#FAFAFA}
-.rda-detail-head{display:flex;gap:9px;align-items:flex-start;margin-bottom:9px}
-.rda-x{margin-left:auto;background:none;border:none;color:#9AA2AD;cursor:pointer;padding:2px}
-.rda-detail-body{font-size:13px;color:#3B4452;line-height:1.5;margin-bottom:9px}
+.rda-detail-wrap{flex-shrink:0;border-bottom:2px solid #1A2233;background:#fff;box-shadow:0 4px 16px rgba(26,34,51,.1)}
+.rda-detail-banner{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#1A2233;color:#fff}
+.rda-detail-banner-label{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+.rda-detail-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.rda-detail-close{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;border-radius:7px;padding:4px 9px;font-size:11.5px;font-weight:650;cursor:pointer}
+.rda-detail-close:hover{background:rgba(255,255,255,.16)}
+.rda-detail{padding:14px 14px 16px 11px;border-left:4px solid;background:#fff}
+.rda-detail-head{display:flex;gap:9px;align-items:flex-start;margin-bottom:10px}
+.rda-detail-title{font-size:15px;font-weight:800;display:block;margin-top:4px;line-height:1.3}
+.rda-detail-body{font-size:13.5px;color:#1A2233;line-height:1.55;margin-bottom:10px;font-weight:500}
 .rda-detail-contact{font-size:12px;color:#5B6675;background:#F1F3F6;border-radius:7px;padding:8px 10px;margin-bottom:10px}
-.rda-detail-section{margin-top:10px}
+.rda-btn-offer{width:100%;justify-content:center;margin:4px 0 12px;background:#059669;color:#fff;padding:11px 14px;font-size:13.5px;font-weight:700}
+.rda-btn-offer:hover{background:#047857}
+.rda-detail-section{margin-top:10px;padding-top:10px;border-top:1px solid #EDEEF1}
 .rda-section-title{font-size:11.5px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:5px;margin-bottom:7px}
 .rda-match-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #F0F1F3}
 .rda-match-label{display:flex;align-items:center;gap:6px;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rda-conn{background:#fff;border:1.5px solid #E9EBEF;border-radius:10px;padding:11px;margin-bottom:8px}
-.rda-conn-row{display:flex;align-items:center;gap:6px;margin-bottom:7px;flex-wrap:wrap}
-.rda-conn-pin{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;flex-shrink:0}
-.rda-conn-place{font-size:12px;font-weight:650;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rda-conn-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px}
-.rda-remote-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:650;color:#2563EB;background:#EFF6FF;padding:2px 7px;border-radius:20px}
-.rda-conn-notes{font-size:11.5px;color:#5B6675;margin-bottom:8px;line-height:1.4}
-.rda-conn-actions{display:flex;gap:6px;flex-wrap:wrap}
+.rda-conn{background:#fff;border:1px solid #E9EBEF;border-top-width:3px;border-radius:12px;padding:14px 16px;margin-bottom:0;display:flex;flex-direction:column;gap:11px}
+.rda-conn-status-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rda-conn-status-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;line-height:1.2}
+.rda-conn-ts{font-size:11px;color:#9CA3AF;display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+.rda-conn-flow{display:flex;align-items:stretch;border:1px solid #E9EBEF;border-radius:8px;overflow:hidden}
+.rda-conn-flow-node{flex:1;min-width:0;padding:8px 10px}
+.rda-conn-flow-node.need{background:#FEF2F2}
+.rda-conn-flow-node.offer{background:#ECFDF5}
+.rda-conn-flow-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.rda-conn-flow-node.need .rda-conn-flow-label{color:#B91C1C}
+.rda-conn-flow-node.offer .rda-conn-flow-label{color:#047857}
+.rda-conn-flow-name{font-size:12px;font-weight:600;color:#1A2233;line-height:1.35;word-break:break-word}
+.rda-conn-flow-arrow{display:flex;align-items:center;justify-content:center;padding:0 8px;background:#F8FAFC;border-left:1px solid #E9EBEF;border-right:1px solid #E9EBEF;flex-shrink:0}
+.rda-conn-note{font-size:12px;color:#5B6675;line-height:1.5;border-left:2px solid #CBD5E1;padding-left:8px;margin:0}
+.rda-conn-contacts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rda-conn-contact{display:flex;flex-direction:column;gap:0;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:8px 10px;min-width:0}
+.rda-conn-contact-role{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748B;margin-bottom:4px}
+.rda-conn-contact-value{font-size:12px;font-weight:600;color:#1A2233;margin-bottom:6px;line-height:1.35;word-break:break-word}
+.rda-contact-actions{display:flex;gap:5px;flex-wrap:wrap}
+.rda-contact-btn{display:inline-flex;align-items:center;gap:4px;border:1px solid #CBD5E1;background:#fff;color:#475569;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;cursor:pointer}
+.rda-contact-btn:hover{background:#F1F5F9;color:#1A2233}
+.rda-contact-btn-wa{border-color:#1D9E75;color:#0F6E56;background:#E1F5EE}
+.rda-contact-btn-wa:hover{background:#9FE1CB}
+.rda-conn-divider{height:1px;background:#E9EBEF}
+.rda-conn-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rda-conn-btn-primary{display:inline-flex;align-items:center;gap:5px;border:1px solid #CBD5E1;background:#fff;color:#1A2233;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+.rda-conn-btn-primary:hover{background:#F8FAFC}
+.rda-conn-btn-ghost{display:inline-flex;align-items:center;gap:5px;border:none;background:none;color:#9CA3AF;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:500;text-decoration:none;cursor:pointer;margin-left:auto}
+.rda-conn-btn-ghost:hover{background:#F8FAFC;color:#6B7280}
+.rda-conn-remote{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:#EFF6FF;color:#2563EB}
+.rda-detail-contact-block{margin-bottom:10px}
+.rda-detail-contact-block .rda-conn-contact{grid-column:1/-1}
 .rda-conn-page{padding:20px;overflow-y:auto;flex:1}
 .rda-conn-header{margin-bottom:16px}
 .rda-conn-title{font-size:18px;font-weight:750;margin:0 0 4px}
-.rda-conn-sub{font-size:13px;color:#6B7280;margin:0}
-.rda-orphan-banner,.rda-coord-banner{display:flex;align-items:center;gap:10px;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;flex-wrap:wrap}
+.rda-conn-sub{font-size:13px;color:#6B7280;margin:0 0 12px}
+.rda-conn-search{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:8px 12px;max-width:480px}
+.rda-conn-search:focus-within{border-color:#94A3B8;box-shadow:0 0 0 2px #E2E8F0}
+.rda-conn-search-input{flex:1;border:none;background:transparent;font-size:14px;color:#1A2233;min-width:0;outline:none}
+.rda-conn-search-input::placeholder{color:#9CA3AF}
+.rda-conn-search-clear{display:inline-flex;align-items:center;justify-content:center;border:none;background:#F1F5F9;color:#64748B;border-radius:6px;padding:4px;cursor:pointer;flex-shrink:0}
+.rda-conn-search-clear:hover{background:#E2E8F0;color:#1A2233}
+.rda-orphan-banner{display:flex;align-items:center;gap:10px;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;flex-wrap:wrap}
 .rda-orphan-banner{background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C}
-.rda-coord-banner{background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8}
-.rda-conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.rda-conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;max-width:980px}
 .rda-form{overflow-y:auto;padding:14px;display:flex;flex-direction:column}
 .rda-form-head{margin-bottom:14px}
+.rda-form-context{font-size:12.5px;color:#065F46;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:8px 10px;margin:8px 0 0;line-height:1.4}
+.rda-form-context b{font-weight:700}
 .rda-back{display:inline-flex;align-items:center;gap:3px;background:none;border:none;color:#6B7280;font-size:12px;font-weight:650;cursor:pointer;padding:0 0 8px}
 .rda-form-head h2{font-size:16px;font-weight:700;margin:0}
 .rda-label{font-size:11.5px;font-weight:700;color:#374151;margin:12px 0 5px;display:block}
 .rda-role-grid{display:flex;flex-direction:column;gap:6px}
 .rda-role-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1.5px solid #DDE1E6;background:#fff;border-radius:9px;padding:9px 11px;cursor:pointer;text-align:left}
 .rda-role-btn span{font-size:11px;opacity:.7}
-.rda-coord-info{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:24px 12px;color:#374151;font-size:13px;line-height:1.5}
 .rda-req{color:#E03B4B;font-weight:700}
 .rda-escombros-fields{background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:10px;padding:12px;margin:8px 0;display:flex;flex-direction:column}
 .rda-equipo-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px}
@@ -987,6 +1352,12 @@ const CSS = `
 .rda-form-actions{display:flex;gap:8px;margin-top:16px}
 .rda-form-actions .rda-btn{flex:1;justify-content:center}
 .rda-hint{font-size:11px;color:#9AA2AD;margin-top:7px;text-align:center}
+.rda-form-err{font-size:12px;color:#B91C1C;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px 12px;margin:10px 0 0;display:flex;align-items:flex-start;gap:8px}
+.rda-form-err-title{margin:0;font-weight:600;line-height:1.45}
+.rda-form-err-list{margin:6px 0 0;padding-left:18px;line-height:1.5}
+.rda-form-err-list li{margin:2px 0}
+.rda-btn-attention{box-shadow:0 0 0 2px #FCD34D}
+.rda-hint-ok{color:#047857}
 .rda-btn{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:650;cursor:pointer}
 .rda-btn-sm{padding:5px 9px;font-size:11.5px}
 .rda-btn-blue{background:#2563EB;color:#fff}.rda-btn-blue:hover{background:#1D4FD0}

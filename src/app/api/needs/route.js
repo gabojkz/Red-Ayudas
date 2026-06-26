@@ -23,12 +23,15 @@ export async function GET(request) {
       status: searchParams.get("status") || undefined,
       type: searchParams.get("type") || undefined,
       kind: searchParams.get("kind") || undefined,
+      types: searchParams.get("types") || undefined,
+      page: searchParams.get("page") || undefined,
+      limit: searchParams.get("limit") || undefined,
     });
     if (!query.ok) {
       return NextResponse.json({ errors: query.errors }, { status: 400 });
     }
-    const needs = await listNeeds(query.data);
-    return NextResponse.json({ needs });
+    const result = await listNeeds(query.data);
+    return NextResponse.json(result);
   } catch (err) {
     console.error("GET /api/needs", err);
     return NextResponse.json(

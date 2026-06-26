@@ -20,7 +20,7 @@ export function getPool() {
   return pool;
 }
 
-export async function listNeeds({ status, type, kind } = {}) {
+export async function listNeeds({ status, type, kind, types, page, limit } = {}) {
   const clauses = [];
   const params = [];
 
@@ -42,18 +42,49 @@ export async function listNeeds({ status, type, kind } = {}) {
     params.push(type);
   }
 
+  if (types?.length) {
+    clauses.push(`type = ANY($${params.length + 1})`);
+    params.push(types);
+  }
+
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  const sql = `
-    SELECT ${NEED_COLUMNS}
-    FROM needs
-    ${where}
+  const order = `
     ORDER BY
       CASE urgency WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 ELSE 2 END,
+      CASE kind WHEN 'need' THEN 0 ELSE 1 END,
       created_at DESC
   `;
 
+  const paginate = page != null || limit != null;
+  let total;
+  if (paginate) {
+    const countSql = `SELECT COUNT(*)::int AS total FROM needs ${where}`;
+    const { rows: countRows } = await getPool().query(countSql, params);
+    total = countRows[0]?.total ?? 0;
+  }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 25));
+  let sql = `SELECT ${NEED_COLUMNS} FROM needs ${where} ${order}`;
+
+  if (paginate) {
+    sql += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limitNum, (pageNum - 1) * limitNum);
+  }
+
   const { rows } = await getPool().query(sql, params);
-  return rows.map(rowToNeed);
+  const needs = rows.map(rowToNeed);
+
+  if (paginate) {
+    return {
+      needs,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.max(1, Math.ceil(total / limitNum)),
+    };
+  }
+  return { needs };
 }
 
 export async function createNeed(data) {

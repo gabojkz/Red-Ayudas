@@ -61,6 +61,7 @@ export function saveViewState(state) {
     selectedId: state.selectedId,
     kindFilter: state.kindFilter || "todos",
     tab: state.tab || "mapa",
+    listPage: state.listPage || 1,
   });
 }
 

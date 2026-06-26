@@ -115,6 +115,7 @@ export default function LibreMap({
   reportMode,
   onMapClick,
   onPinClick,
+  fitBoundsKey,
 }) {
   const [showZones, setShowZones] = useState(true);
   const [showFacilities, setShowFacilities] = useState(true);
@@ -131,6 +132,29 @@ export default function LibreMap({
       duration: 700,
     });
   }, [selectedId, needs]);
+
+  useEffect(() => {
+    if (!fitBoundsKey) return;
+    const map = mapRef.current?.getMap?.();
+    if (!map || needs.length === 0) return;
+
+    const lngs = [];
+    const lats = [];
+    for (const n of needs) {
+      const lat = Number(n.lat);
+      const lng = Number(n.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        lats.push(lat);
+        lngs.push(lng);
+      }
+    }
+    if (!lngs.length) return;
+
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 56, duration: 600, maxZoom: 12 }
+    );
+  }, [fitBoundsKey, needs]);
 
   return (
     <Map
@@ -213,6 +237,9 @@ export default function LibreMap({
       )}
 
       {needs.map((n) => {
+        const lat = Number(n.lat);
+        const lng = Number(n.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
         const selected = n.id === selectedId;
         const crit = n.kind === "need" && n.urgency === "critica" && n.status !== "cubierto" && !n.hasCoverage;
         const dimmed = n.hasCoverage || n.status === "cubierto";
@@ -220,8 +247,8 @@ export default function LibreMap({
         return (
           <Marker
             key={n.id}
-            latitude={Number(n.lat)}
-            longitude={Number(n.lng)}
+            latitude={lat}
+            longitude={lng}
             anchor="center"
             onClick={(e) => {
               e.originalEvent.stopPropagation();
@@ -245,7 +272,9 @@ export default function LibreMap({
         );
       })}
 
-      {reportMode && draftLatLng && (
+      {reportMode && draftLatLng
+        && Number.isFinite(draftLatLng.lat)
+        && Number.isFinite(draftLatLng.lng) && (
         <Marker latitude={draftLatLng.lat} longitude={draftLatLng.lng} anchor="center">
           <div className="rda-target" />
         </Marker>

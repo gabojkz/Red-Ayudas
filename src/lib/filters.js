@@ -1,4 +1,5 @@
 import { URGENCY } from "./constants.js";
+import { comparePostsByPriority } from "./priority.js";
 
 /**
  * Filtra y ordena publicaciones para la lista de la app.
@@ -15,9 +16,7 @@ export function filterPosts(posts, { activeTypes, kindFilter, statusFilter }) {
       statusFilter === "todas" ? true :
       statusFilter === "cubierto" ? n.status === "cubierto" :
       n.status !== "cubierto")
-    .sort((a, b) =>
-      URGENCY[a.urgency].rank - URGENCY[b.urgency].rank ||
-      (a.mins ?? 0) - (b.mins ?? 0));
+    .sort(comparePostsByPriority);
 }
 
 /** @param {ReturnType<typeof filterPosts>} matches */

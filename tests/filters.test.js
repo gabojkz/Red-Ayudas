@@ -40,6 +40,16 @@ describe("filterPosts", () => {
     assert.equal(out[0].urgency, "critica");
   });
 
+  it("con filtro todos, críticas arriba aunque haya ofertas recientes", () => {
+    const out = filterPosts(posts, {
+      activeTypes: new Set(["agua", "medicamentos", "transporte", "voluntario"]),
+      kindFilter: "todos",
+      statusFilter: "activas",
+    });
+    assert.equal(out[0].id, 1);
+    assert.equal(out[0].urgency, "critica");
+  });
+
   it("respeta chips de tipo desactivados", () => {
     const out = filterPosts(posts, {
       activeTypes: new Set(["medicamentos"]),

@@ -11,6 +11,12 @@ export default function sitemap() {
       priority: 1,
     },
     {
+      url: absoluteUrl("/recursos"),
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
       url: absoluteUrl("/docs/api"),
       lastModified: now,
       changeFrequency: "weekly",

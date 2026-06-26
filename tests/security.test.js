@@ -52,6 +52,9 @@ test("validateListNeedsQuery whitelists filters", () => {
   assert.equal(validateListNeedsQuery({ status: "hack" }).ok, false);
   assert.equal(validateListNeedsQuery({ type: "medicamentos" }).ok, true);
   assert.equal(validateListNeedsQuery({ type: "'; DROP TABLE--" }).ok, false);
+  assert.equal(validateListNeedsQuery({ page: "2", limit: "25", types: "agua,medicamentos" }).ok, true);
+  assert.equal(validateListNeedsQuery({ page: "0", limit: "25" }).ok, false);
+  assert.equal(validateListNeedsQuery({ limit: "500" }).ok, false);
 });
 
 test("validateListConnectionsQuery whitelists filters", () => {
@@ -67,7 +70,7 @@ test("validateCreateNeed truncates contact", () => {
     urgency: "alta",
     place: "Centro",
     detail: "Botellas",
-    contact: "x".repeat(500),
+    contact: `04145550101 ${"x".repeat(220)}`,
     lat: 10.49,
     lng: -66.9,
   });
