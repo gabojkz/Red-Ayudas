@@ -14,10 +14,15 @@ describe("stockValidation", () => {
   it("normaliza cédula venezolana", () => {
     assert.equal(normalizeCedula("12345678"), "V-12345678");
     assert.equal(normalizeCedula("v-87654321"), "V-87654321");
+    assert.equal(normalizeCedula("6176211"), "V-6176211");
+    assert.equal(normalizeCedula("6.176.211"), "V-6176211");
+    assert.equal(normalizeCedula("6-176-211"), "V-6176211");
   });
 
   it("valida cédula", () => {
     assert.equal(isValidCedula("V-12345678"), true);
+    assert.equal(isValidCedula("6176211"), true);
+    assert.equal(isValidCedula("6.176.211"), true);
     assert.equal(isValidCedula("123"), false);
   });
 

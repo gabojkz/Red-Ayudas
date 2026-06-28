@@ -22,15 +22,24 @@ function parsePhotoData(body, errors, label = "foto") {
 export function normalizeCedula(text) {
   const raw = String(text ?? "").trim().toUpperCase().replace(/\s/g, "");
   if (!raw) return "";
-  const digits = raw.replace(/^V-?/, "");
-  if (!/^\d{6,10}$/.test(digits)) return raw;
-  return `V-${digits}`;
+
+  let prefix = "V";
+  let rest = raw;
+  const prefixMatch = raw.match(/^([VEJ])[-.]?/);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+    rest = raw.slice(prefixMatch[0].length);
+  }
+
+  const digits = rest.replace(/[^\d]/g, "");
+  if (!/^\d{5,10}$/.test(digits)) return raw;
+  return `${prefix}-${digits}`;
 }
 
 export function isValidCedula(text) {
   const norm = normalizeCedula(text);
-  const digits = norm.replace(/^V-/, "");
-  return /^\d{6,10}$/.test(digits);
+  const m = norm.match(/^([VEJ])-(\d{5,10})$/);
+  return Boolean(m);
 }
 
 export function validateSedeLogin(body) {
@@ -191,7 +200,7 @@ export function validateCreateHelper(body) {
   let photoData = null;
 
   if (!nombre) errors.push("nombre requerido");
-  if (!isValidCedula(cedula)) errors.push("cédula inválida (ej. V-12345678)");
+  if (!isValidCedula(cedula)) errors.push("cédula inválida (5–10 dígitos, ej. 6176211 o V-6176211)");
   if (!SEDE_ROLE_KEYS.includes(rol)) errors.push("rol inválido");
 
   if (body.photoData != null && body.photoData !== "") {

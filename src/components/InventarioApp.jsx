@@ -322,7 +322,7 @@ function RegisterSedeView({ onRegistered, onBack }) {
             <div className="inv-lf" style={{ marginBottom: 0 }}>
               <label>Cédula</label>
               <input value={w.cedula} onChange={(e) => setWorker(idx, { cedula: e.target.value })}
-                placeholder="V-12345678" />
+                placeholder="6176211 o V-6176211" />
             </div>
           </div>
         ))}
@@ -953,7 +953,7 @@ function TrabajadoresView({ session, sedeData, helpers, onRefresh, toast }) {
           <div className="inv-addform">
             <input className="inv-inp" style={{ marginBottom: 9 }} placeholder="Nombre completo"
               value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
-            <input className="inv-inp" style={{ marginBottom: 9 }} placeholder="Cédula (ej. V-12345678)"
+            <input className="inv-inp" style={{ marginBottom: 9 }} placeholder="6176211 o V-6176211"
               value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} />
             <select className="inv-inp" style={{ marginBottom: 9 }} value={form.rol}
               onChange={(e) => setForm({ ...form, rol: e.target.value })}>
