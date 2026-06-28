@@ -43,7 +43,7 @@ export async function GET(request) {
       return NextResponse.json({ errors: query.errors }, { status: 400 });
     }
 
-    const [needs, sedesWithStock] = await Promise.all([
+    const [needsResult, sedesWithStock] = await Promise.all([
       listNeeds({
         status: "activas",
         kind: query.data.kind,
@@ -52,6 +52,7 @@ export async function GET(request) {
       listSedesWithStockForFeed(),
     ]);
 
+    const needs = needsResult.needs || [];
     const feed = buildFeed(needs.slice(0, query.data.limit), sedesWithStock);
     return NextResponse.json(feed, {
       headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },

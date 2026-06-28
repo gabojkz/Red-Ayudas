@@ -66,6 +66,11 @@ test("buildFeed wraps items", () => {
   assert.ok(feed.updatedAt);
 });
 
+test("feed route uses listNeeds.needs array shape", () => {
+  const source = readFileSync(FEED_ROUTE, "utf8");
+  assert.match(source, /needsResult\.needs\s*\|\|\s*\[\]/);
+});
+
 test("toFeedStockItem maps public stock shape", () => {
   const item = toFeedStockItem({
     cat: "agua",
