@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ArrowUpRight, Github, Instagram, MapPin, Package, Search, Users, Zap } from "lucide-react";
-import { createPageMetadata } from "@/lib/seo";
+import { createPageMetadata, siteConfig } from "@/lib/seo";
 import { RESOURCE_SECTIONS, THIS_PROJECT } from "@/lib/otherResources";
 import "./recursos.css";
 
 export const metadata = createPageMetadata({
   title: "Otros recursos de ayuda",
   description:
-    "Enlaces útiles para buscar desaparecidos, localizados y otras herramientas de respuesta humanitaria en Venezuela. Incluye Red de Ayuda (open source).",
+    `Enlaces útiles para buscar desaparecidos, localizados y otras herramientas de respuesta humanitaria en Venezuela. Incluye ${siteConfig.name} (open source).`,
   path: "/recursos",
 });
 
@@ -37,7 +37,7 @@ export default function RecursosPage() {
           <Zap size={16} strokeWidth={2.6} color="#fff" />
         </div>
         <div>
-          <div className="recursos-topbar-title">Red de Ayuda · Venezuela</div>
+          <div className="recursos-topbar-title">{siteConfig.title}</div>
           <div className="recursos-topbar-sub">Directorio de recursos</div>
         </div>
       </div>
@@ -136,7 +136,7 @@ export default function RecursosPage() {
         <footer className="recursos-footer">
           <Users size={16} aria-hidden />
           <span>
-            Estos sitios son independientes de Red de Ayuda. Verifica la información antes de actuar.
+            Estos sitios son independientes de {siteConfig.name}. Verifica la información antes de actuar.
           </span>
         </footer>
       </main>

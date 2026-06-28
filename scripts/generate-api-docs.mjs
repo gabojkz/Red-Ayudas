@@ -196,7 +196,9 @@ function renderEndpoint(ep, lang) {
 }
 
 function renderDoc(endpoint, lang) {
-  const title = lang === "es" ? "Feed público — Red de Ayuda" : "Public feed — Red de Ayuda";
+  const title = lang === "es"
+    ? `Feed público — ${siteConfig.name}`
+    : `Public feed — ${siteConfig.name}`;
   const intro =
     lang === "es"
       ? "Un endpoint GET de solo lectura con publicaciones activas e inventario por centro. Para publicar o coordinar ayuda, usa la app web."

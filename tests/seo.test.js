@@ -4,8 +4,8 @@ import { getSiteUrl, absoluteUrl, websiteJsonLd, siteConfig } from "../src/lib/s
 
 test("getSiteUrl prefers NEXT_PUBLIC_APP_URL", () => {
   const prev = process.env.NEXT_PUBLIC_APP_URL;
-  process.env.NEXT_PUBLIC_APP_URL = "https://red-ayudas.vercel.app/";
-  assert.equal(getSiteUrl(), "https://red-ayudas.vercel.app");
+  process.env.NEXT_PUBLIC_APP_URL = "https://www.unidosve.com/";
+  assert.equal(getSiteUrl(), "https://www.unidosve.com");
   process.env.NEXT_PUBLIC_APP_URL = prev;
 });
 

@@ -1,42 +1,32 @@
-# Red de Ayuda
+# Unidos VE Red de Ayudas
 
-Mapa colaborativo para coordinar necesidades de ayuda humanitaria en Venezuela. Frontend en Next.js, backend en JavaScript con PostgreSQL (Supabase), desplegable en **Vercel** + **Supabase**, con **mapas libres** (OpenFreeMap / OpenStreetMap) accesibles sin API keys.
+Plataforma colaborativa para coordinar ayuda humanitaria en Venezuela: inventario por sede de emergencia, directorio de centros, reportes en mapa y feed público para integradores.
+
+**Producción:** [www.unidosve.com](https://www.unidosve.com)
+
+## Módulos
+
+| Ruta | Descripción |
+|------|-------------|
+| `/` | Buscar materiales y personal por centro cerca de ti |
+| `/inventario` | Registro y gestión de stock, camas y trabajadores por sede |
+| `/centros` | Directorio público de centros (inventario, equipo, contacto) |
+| `/reportes` | Mapa de necesidades/ofertas y conexiones entre reportes |
+| `/recursos` | Enlaces externos útiles (desaparecidos, etc.) |
+| `/docs/api` | Documentación del feed JSON |
+| `GET /api/feed` | API pública de solo lectura |
 
 ## Stack
 
 | Capa | Tecnología |
 |------|------------|
 | Frontend | Next.js 15 + React |
-| Mapas | MapLibre GL + [OpenFreeMap](https://openfreemap.org/) (libre, sin bloqueos de Google) |
-| API | Next.js Route Handlers (`/api/needs`) |
-| Base de datos | PostgreSQL en Supabase |
-| Deploy | Vercel (app) + Supabase (DB) |
+| Mapas | MapLibre GL + [OpenFreeMap](https://openfreemap.org/) |
+| API | Next.js Route Handlers |
+| Base de datos | PostgreSQL (Supabase) |
+| Deploy | Vercel + Supabase |
 | PWA | Serwist — caché offline de app, API y mapa |
 | Tests | Node.js test runner |
-
-## Por qué OpenFreeMap
-
-- **Libre y open source** — datos de OpenStreetMap, sin licencias propietarias.
-- **Sin API key** — funciona en Venezuela sin depender de Google Maps ni servicios bloqueados.
-- **Gratis** — sin límites estrictos para uso comunitario.
-
-## PWA offline
-
-La app es instalable como PWA y funciona **sin señal** mostrando la última vista:
-
-- **Service Worker (Serwist)** — precachea la app y guarda respuestas de `/api/needs` y tiles del mapa.
-- **localStorage** — snapshot de reportes, filtros y selección activa.
-- **Cola offline** — reportes y cambios de estado se encolan y sincronizan al recuperar conexión.
-- **Banner amarillo** — indica modo offline y cuántos cambios están pendientes.
-
-Para probar offline en producción:
-
-```bash
-npm run build && npm start
-# Instala la PWA desde el navegador, visita la app con señal, luego activa modo avión
-```
-
-> El service worker solo se registra en producción (`npm run build && npm start`), no en `npm run dev`.
 
 ## Inicio rápido (desarrollo local)
 
@@ -44,57 +34,64 @@ Requiere [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ```bash
 npm install
-cp .env.example .env.local   # ya apunta a Postgres en Docker
-npm run setup:dev            # levanta Docker, migra y carga 12 reportes fake
+cp .env.example .env.local   # Postgres local en Docker
+npm run setup:dev            # Docker + migraciones + seeds
 npm run dev
 ```
 
 Abre [http://localhost:3000](http://localhost:3000).
-
-### Comandos útiles
 
 | Comando | Descripción |
 |---------|-------------|
 | `npm run db:up` | Levanta Postgres en Docker |
-| `npm run db:seed` | Recarga datos de prueba (borra y reinserta) |
-| `npm run db:reset` | Borra volumen, recrea DB + seed |
+| `npm run db:migrate` | Aplica migraciones SQL |
+| `npm run db:seed` | Recarga datos de prueba |
+| `npm run db:reset` | Borra volumen y recrea todo |
 | `npm run db:down` | Para el contenedor |
+| `npm test` | Tests del backend |
 
-Los datos fake están en `supabase/seeds/dev.sql` — cubren todos los tipos, urgencias y estados en Caracas, La Guaira, Yaracuy y más.
+Seeds: `supabase/seeds/dev.sql` (reportes en mapa) y `stock.sql` (sedes demo, contraseña `ayuda`).
 
-## Inicio rápido (producción · Supabase)
+## Producción · Supabase
 
-### 1. Supabase
-
-1. Crea un proyecto en [supabase.com](https://supabase.com).
-2. Aplica el esquema con `supabase db push` (ver abajo) o ejecuta los SQL de `supabase/migrations/` en el **SQL Editor**.
-3. Copia la **Connection string** (modo **Transaction pooler**, puerto **6543**) desde *Project Settings → Database*.
-
-### 2. Variables de entorno
+### 1. Crear proyecto y aplicar tablas
 
 ```bash
-cp .env.example .env.local
-# Edita DATABASE_URL con tu connection string de Supabase
+supabase login
+supabase link --project-ref TU_PROJECT_REF
+npm run db:push
 ```
 
-### 3. Instalar y correr
+O ejecuta manualmente los archivos de `supabase/migrations/` en el **SQL Editor** de Supabase, en orden por fecha.
+
+Tablas principales: `needs`, `connections`, `sedes`, `stock_items`, `sede_helpers`, `sede_labor_needs`.
+
+### 2. (Opcional) Datos de demo
+
+Con `DATABASE_URL` apuntando al **pooler** de Supabase (puerto **6543**):
 
 ```bash
-npm install
-npm run dev
+npm run db:seed
 ```
 
-Abre [http://localhost:3000](http://localhost:3000).
-
-### 4. Tests
+### 3. Variables de entorno
 
 ```bash
-npm test
+# Vercel / producción
+DATABASE_URL=postgresql://postgres.[REF]:[PASS]@aws-0-[region].pooler.supabase.com:6543/postgres
+NEXT_PUBLIC_APP_URL=https://www.unidosve.com
 ```
+
+Usa el **Transaction pooler (6543)**, no `db.[ref].supabase.co` (falla en Vercel por IPv6). Si conectas la integración Supabase en Vercel, `POSTGRES_URL` suele bastar.
+
+## Deploy en Vercel
+
+1. Importa el repo en [vercel.com](https://vercel.com).
+2. Variables de entorno: `DATABASE_URL` o `POSTGRES_URL`, y `NEXT_PUBLIC_APP_URL=https://www.unidosve.com`.
+3. **Settings → Domains:** añade `www.unidosve.com` y redirige `unidosve.com` → `www`.
+4. Deploy.
 
 ## API pública (feed)
-
-Endpoint de solo lectura para integradores:
 
 ```
 GET /api/feed
@@ -104,39 +101,35 @@ GET /api/feed
 |-----------|-------------|
 | `kind` | `need` u `offer` |
 | `type` | categoría (`medicamentos`, `agua`, …) |
-| `limit` | máx. ítems de publicaciones (default 100, máx. 500) |
+| `limit` | máx. ítems (default 100, máx. 500) |
 
-La respuesta incluye `items` (necesidades/ofertas activas) y `centros` (inventario de stock por centro registrado).
+Respuesta: `items` (publicaciones activas) y `centros` (inventario por sede).
 
-Documentación: [`/docs/api`](/docs/api) · regenerar con `npm run docs:api`.
+Documentación: [www.unidosve.com/docs/api](https://www.unidosve.com/docs/api) · regenerar con `npm run docs:api`.
 
-Las rutas `/api/needs` y `/api/connections` son internas (app web).
+Las rutas `/api/needs` y `/api/connections` son internas (módulo de reportes).
 
-## Deploy en Vercel
+## PWA offline
 
-1. Sube el repo a GitHub.
-2. Importa el proyecto en [vercel.com](https://vercel.com).
-3. Añade variables de entorno:
-   - `DATABASE_URL` (connection string de Supabase pooler)
-   - `NEXT_PUBLIC_APP_URL` (tu URL de producción, p. ej. `https://red-ayudas.vercel.app`) — necesaria para SEO (canonical, sitemap, Open Graph)
-4. Deploy.
-
-Vercel detecta Next.js automáticamente. No necesitas configuración extra.
+En producción (`npm run build && npm start`) la app es instalable y cachea la última vista, `/api/needs` y tiles del mapa. El service worker no se registra en `npm run dev`.
 
 ## Estructura
 
 ```
 src/
-  app/api/feed/      # API pública (GET feed)
-  app/api/needs/     # interno (app web)
-  components/        # RedDeAyuda, LibreMap
-  lib/               # db, validation, constants
-supabase/migrations/ # SQL schema
-tests/               # tests del backend
+  app/               # páginas y route handlers
+  app/api/feed/      # feed público
+  app/api/sedes/     # inventario por sede
+  components/        # UI (InventarioApp, NecesidadesLista, RedDeAyuda, …)
+  lib/               # db, stockDb, validation, seo
+supabase/migrations/ # esquema SQL
+supabase/seeds/      # datos de demo
+docs/                # api.es.md, api.en.md (generados)
+tests/
 ```
 
 ## Notas para Venezuela
 
-- Vercel y Supabase tienen presencia global; el pooler de Supabase reduce latencia.
-- Los tiles de OpenFreeMap se sirven desde servidores dedicados (no Google).
-- Si algún ISP bloquea un dominio de tiles, puedes auto-hospedar OpenFreeMap (ver su [guía](https://github.com/hyperknot/openfreemap)).
+- Mapas sin API key (OpenFreeMap / OpenStreetMap).
+- Pooler de Supabase reduce latencia desde Vercel.
+- Si un ISP bloquea tiles, puedes auto-hospedar OpenFreeMap ([guía](https://github.com/hyperknot/openfreemap)).

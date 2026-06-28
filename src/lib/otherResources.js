@@ -1,4 +1,6 @@
-/** Enlaces externos útiles — no gestionados por Red de Ayuda. */
+import { siteConfig } from "./seo.js";
+
+/** Enlaces externos útiles — no gestionados por Unidos VE Red de Ayudas. */
 
 export const RESOURCE_SECTIONS = [
   {
@@ -38,7 +40,7 @@ export const RESOURCE_SECTIONS = [
 ];
 
 export const THIS_PROJECT = {
-  title: "Red de Ayuda",
+  title: siteConfig.name,
   repoUrl: "https://github.com/gabojkz/Red-Ayudas",
   repoLabel: "gabojkz/Red-Ayudas",
   tagline: "Mapa colaborativo open source para coordinar ayuda humanitaria en Venezuela.",

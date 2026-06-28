@@ -1,10 +1,10 @@
-# Public feed — Red de Ayuda
+# Public feed — Unidos VE Red de Ayudas
 
 One read-only GET endpoint with active posts and per-center inventory. To publish or coordinate aid, use the web app.
 
 ## URL
 
-`https://red-ayudas.vercel.app/api/feed` — cached 30 s.
+`https://www.unidosve.com/api/feed` — cached 30 s.
 
 ## Feed fields
 
@@ -108,6 +108,6 @@ Public read-only feed of active humanitarian posts.
 **Sample request**
 
 ```
-curl -s "https://red-ayudas.vercel.app/api/feed?kind=need&limit=20"
+curl -s "https://www.unidosve.com/api/feed?kind=need&limit=20"
 ```
 

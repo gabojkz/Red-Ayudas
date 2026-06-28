@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
 import { renderMarkdown } from "@/lib/renderMarkdown";
-import { createPageMetadata } from "@/lib/seo";
+import { createPageMetadata, siteConfig } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
   title: "Public feed for developers",
   description:
-    "Red de Ayuda JSON feed documentation: active humanitarian needs and offers in Venezuela.",
+    `${siteConfig.name} JSON feed documentation: active humanitarian needs and offers in Venezuela.`,
   path: "/docs/api/en",
   alternates: {
     languages: {

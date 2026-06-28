@@ -25,6 +25,7 @@ import { downloadSedeReportCsv, printSedeReport } from "@/lib/sedeReportExport";
 import { mapLinks } from "@/lib/mapLinks";
 import { phoneTelHref } from "@/lib/phone";
 import { useUserLocation } from "@/lib/useUserLocation";
+import { siteConfig } from "@/lib/seo";
 import "@/app/inventario/inventario.css";
 
 const CAT_ICONS = {
@@ -156,7 +157,7 @@ function LoginView({ onLogin, onGuest, onRegister }) {
     <div className="inv-login">
       <div className="inv-login-scroll">
         <div className="inv-mark"><ShieldCheck size={26} color="#fff" /></div>
-        <h1>Red de Ayuda</h1>
+        <h1>{siteConfig.name}</h1>
         <div className="tag">Registro de materiales por sede · Coordinación de emergencia</div>
         {err && <div className="inv-err"><AlertTriangle size={15} />{err}</div>}
         <div className="inv-lf">

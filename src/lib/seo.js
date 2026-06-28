@@ -1,11 +1,13 @@
 /** Shared SEO config for metadata, sitemap, and JSON-LD. */
 
 export const siteConfig = {
-  name: "Red de Ayuda",
-  title: "Red de Ayuda · Venezuela",
+  name: "Unidos VE Red de Ayudas",
+  shortName: "Unidos VE",
+  title: "Unidos VE Red de Ayudas · Venezuela",
   description:
     "Mapa colaborativo para coordinar necesidades y ofertas de ayuda humanitaria en Venezuela tras emergencias.",
   keywords: [
+    "Unidos VE",
     "ayuda humanitaria Venezuela",
     "emergencias Venezuela",
     "mapa ayuda Venezuela",
@@ -15,11 +17,11 @@ export const siteConfig = {
     "rescate Venezuela",
     "donaciones Venezuela",
     "PWA ayuda humanitaria",
-    "Red de Ayuda",
+    "Red de Ayudas",
   ],
   locale: "es_VE",
   language: "es",
-  url: "https://red-ayudas.vercel.app",
+  url: "https://www.unidosve.com",
   twitterHandle: null,
 };
 

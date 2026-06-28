@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  * @response 500 - @en `{ error }` | @es `{ error }`
  *
  * @example
- * curl -s "https://red-ayudas.vercel.app/api/feed?kind=need&limit=20"
+ * curl -s "https://www.unidosve.com/api/feed?kind=need&limit=20"
  */
 export async function GET(request) {
   try {

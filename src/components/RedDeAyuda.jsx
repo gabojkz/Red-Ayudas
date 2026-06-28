@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { asyncHandler } from "@/lib/asyncHandler";
+import { siteConfig } from "@/lib/seo";
 import { mapLinks } from "@/lib/mapLinks";
 import { ESCOMBROS_EQUIPO, escombrosMetaChips, toggleEquipo, parseEquipos } from "@/lib/escombros";
 import {
@@ -416,7 +417,7 @@ export default function RedDeAyuda() {
         <div className="rda-head-left">
           <div className="rda-mark"><Zap size={16} strokeWidth={2.6} /></div>
           <div>
-            <h1 className="rda-title">Red de Ayuda · Venezuela</h1>
+            <h1 className="rda-title">{siteConfig.title}</h1>
             <p className="rda-sub">Coordinación logística para respuesta humanitaria</p>
           </div>
         </div>

@@ -1,7 +1,9 @@
+import { siteConfig } from "@/lib/seo";
+
 export default function manifest() {
   return {
-    name: "Red de Ayuda · Venezuela",
-    short_name: "Red de Ayuda",
+    name: siteConfig.title,
+    short_name: siteConfig.shortName,
     description: "Mapa colaborativo de necesidades de ayuda humanitaria",
     start_url: "/",
     display: "standalone",

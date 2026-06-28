@@ -11,6 +11,7 @@ import {
   STOCK_CATS, LABOR_SKILLS, SEDE_ROLES, stockStatus, timeAgoStock,
 } from "@/lib/stockConstants";
 import { apiGetCentroPublic } from "@/lib/stockApi";
+import { siteConfig } from "@/lib/seo";
 import { mapLinks } from "@/lib/mapLinks";
 import { phoneTelHref, phoneWhatsAppHref } from "@/lib/phone";
 import "@/app/centros/centros.css";
@@ -102,7 +103,9 @@ export default function CentroDetalle({ slug }) {
   const { sede, equipo, stockDisponible, stockFalta, personalNecesita } = data;
   const links = sede.lat != null ? mapLinks(sede.lat, sede.lng, sede.nombre) : null;
   const tel = sede.contacto ? phoneTelHref(sede.contacto) : null;
-  const wa = sede.contacto ? phoneWhatsAppHref(sede.contacto, `Hola, vi el centro ${sede.nombre} en Red de Ayuda.`) : null;
+  const wa = sede.contacto
+    ? phoneWhatsAppHref(sede.contacto, `Hola, vi el centro ${sede.nombre} en ${siteConfig.name}.`)
+    : null;
 
   return (
     <div className="cen-page">
