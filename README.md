@@ -94,7 +94,7 @@ npm test
 
 ## API pública (feed)
 
-Un solo endpoint de solo lectura para integradores:
+Endpoint de solo lectura para integradores:
 
 ```
 GET /api/feed
@@ -104,7 +104,9 @@ GET /api/feed
 |-----------|-------------|
 | `kind` | `need` u `offer` |
 | `type` | categoría (`medicamentos`, `agua`, …) |
-| `limit` | máx. ítems (default 100, máx. 500) |
+| `limit` | máx. ítems de publicaciones (default 100, máx. 500) |
+
+La respuesta incluye `items` (necesidades/ofertas activas) y `centros` (inventario de stock por centro registrado).
 
 Documentación: [`/docs/api`](/docs/api) · regenerar con `npm run docs:api`.
 

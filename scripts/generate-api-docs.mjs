@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { KIND, TYPES, URGENCY, STATUS } from "../src/lib/constants.js";
+import { STOCK_CATS } from "../src/lib/stockConstants.js";
 import { siteConfig } from "../src/lib/seo.js";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
@@ -78,6 +79,7 @@ function extractEndpoints(filePath) {
 
 function renderEnums(lang) {
   const list = (obj) => Object.keys(obj).map((k) => `\`${k}\``).join(", ");
+  const stockCats = Object.keys(STOCK_CATS).map((k) => `\`${k}\``).join(", ");
   const title = lang === "es" ? "Campos del feed" : "Feed fields";
   return [
     `## ${title}`,
@@ -88,7 +90,7 @@ function renderEnums(lang) {
     "",
     `- \`id\`, \`kind\`, \`type\`, \`urgency\`, \`status\`, \`place\`, \`zone\`, \`detail\`, \`lat\`, \`lng\`, \`publishedAt\``,
     "",
-    lang === "es" ? "**Enums**" : "**Enums**",
+    lang === "es" ? "**Enums (publicaciones)**" : "**Enums (posts)**",
     "",
     `- **kind:** ${list(KIND)}`,
     `- **type:** ${list(TYPES)}`,
@@ -96,8 +98,30 @@ function renderEnums(lang) {
     `- **status:** ${list(STATUS)}`,
     "",
     lang === "es"
-      ? "Solo publicaciones activas (`status` ≠ `cubierto`). Sin datos de contacto."
-      : "Active posts only (`status` ≠ `cubierto`). No contact info.",
+      ? "Solo publicaciones activas (`status` ≠ `cubierto`). Sin datos de contacto en `items`."
+      : "Active posts only (`status` ≠ `cubierto`). No contact info in `items`.",
+    "",
+    lang === "es" ? "**Centros e inventario (`centros.items`)**" : "**Centers and inventory (`centros.items`)**",
+    "",
+    lang === "es"
+      ? "Cada centro registrado incluye datos públicos y su stock actual:"
+      : "Each registered center includes public data and current stock:",
+    "",
+    `- \`slug\`, \`nombre\`, \`zona\`, \`lat\`, \`lng\`, \`contacto\`, \`camasTotal\`, \`camasLibres\`, \`bedsStatus\`, \`operationalStatus\`, \`stock\``,
+    "",
+    lang === "es" ? "**Enums (centros)**" : "**Enums (centers)**",
+    "",
+    `- **bedsStatus:** \`sin_camas\`, \`lleno\`, \`casi_lleno\`, \`disponible\``,
+    `- **operationalStatus:** \`operativo\`, \`atencion\`, \`critico\``,
+    "",
+    lang === "es" ? "**Enums (stock por ítem)**" : "**Enums (stock per item)**",
+    "",
+    `- **cat:** ${stockCats}`,
+    `- **status:** \`agotado\`, \`bajo\`, \`disponible\``,
+    "",
+    lang === "es"
+      ? "Cada línea de `stock` incluye: \`cat\`, \`nombre\`, \`cantidad\`, \`unidad\`, \`status\`, \`updatedAt\`."
+      : "Each `stock` line includes: \`cat\`, \`nombre\`, \`cantidad\`, \`unidad\`, \`status\`, \`updatedAt\`.",
     "",
   ].join("\n");
 }
@@ -138,7 +162,30 @@ function renderEndpoint(ep, lang) {
     "lat": 10.498,
     "lng": -66.905,
     "publishedAt": "2026-06-25T10:00:00.000Z"
-  }]
+  }],
+  "centros": {
+    "count": 1,
+    "items": [{
+      "slug": "chacao",
+      "nombre": "Centro Chacao",
+      "zona": "Plaza Bolívar de Chacao",
+      "lat": 10.495,
+      "lng": -66.854,
+      "contacto": "0414-2233445",
+      "camasTotal": 120,
+      "camasLibres": 33,
+      "bedsStatus": "disponible",
+      "operationalStatus": "operativo",
+      "stock": [{
+        "cat": "medicina",
+        "nombre": "Insulina",
+        "cantidad": 24,
+        "unidad": "u",
+        "status": "disponible",
+        "updatedAt": "2026-06-25T11:00:00.000Z"
+      }]
+    }]
+  }
 }`, "```", "");
 
   if (ep.example) {
@@ -152,8 +199,8 @@ function renderDoc(endpoint, lang) {
   const title = lang === "es" ? "Feed público — Red de Ayuda" : "Public feed — Red de Ayuda";
   const intro =
     lang === "es"
-      ? "Un solo endpoint GET de solo lectura. Para publicar o coordinar ayuda, usa la app web."
-      : "One read-only GET endpoint. To publish or coordinate aid, use the web app.";
+      ? "Un endpoint GET de solo lectura con publicaciones activas e inventario por centro. Para publicar o coordinar ayuda, usa la app web."
+      : "One read-only GET endpoint with active posts and per-center inventory. To publish or coordinate aid, use the web app.";
 
   const base =
     lang === "es"

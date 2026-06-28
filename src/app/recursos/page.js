@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Github, MapPin, Search, Users, Zap } from "lucide-react";
+import { ArrowUpRight, Github, Instagram, MapPin, Package, Search, Users, Zap } from "lucide-react";
 import { createPageMetadata } from "@/lib/seo";
 import { RESOURCE_SECTIONS, THIS_PROJECT } from "@/lib/otherResources";
 import "./recursos.css";
@@ -44,7 +44,7 @@ export default function RecursosPage() {
 
       <main className="recursos-page">
         <header className="recursos-header">
-          <Link href="/" className="recursos-back">← Volver al mapa</Link>
+          <Link href="/" className="recursos-back">← Inicio</Link>
           <h1>Otros recursos de ayuda</h1>
           <p className="recursos-lead">
             Enlaces externos útiles. Esta app coordina logística; estas páginas cubren
@@ -82,7 +82,10 @@ export default function RecursosPage() {
 
           <div className="recursos-project-actions">
             <Link href="/" className="recursos-btn recursos-btn-primary">
-              <MapPin size={16} aria-hidden /> Abrir mapa
+              <Package size={16} aria-hidden /> Necesidades por centro
+            </Link>
+            <Link href="/reportes" className="recursos-btn recursos-btn-outline">
+              <MapPin size={16} aria-hidden /> Reportes colaborativos
             </Link>
             <a
               className="recursos-btn recursos-btn-outline"
@@ -93,6 +96,18 @@ export default function RecursosPage() {
               <Github size={16} aria-hidden /> Código open source
             </a>
           </div>
+
+          <p className="recursos-contribute">{THIS_PROJECT.contribute}</p>
+          <p className="recursos-contribute-links">
+            <a href={THIS_PROJECT.repoUrl} target="_blank" rel="noopener noreferrer">
+              Abrir repositorio en GitHub
+            </a>
+            {" · "}
+            <a href={THIS_PROJECT.author.instagramUrl} target="_blank" rel="noopener noreferrer">
+              <Instagram size={14} aria-hidden style={{ verticalAlign: -2 }} />{" "}
+              {THIS_PROJECT.author.instagramLabel}
+            </a>
+          </p>
 
           <p className="recursos-repo-note">
             Repositorio:{" "}

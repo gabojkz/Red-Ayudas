@@ -85,12 +85,12 @@ describe("validateCreateNeed — reportes (pide)", () => {
     assert.equal(validateCreateNeed("texto").ok, false);
   });
 
-  it("rechaza teléfono ausente o inválido", () => {
+  it("teléfono opcional; rechaza formato inválido si se indica", () => {
     assert.equal(validateCreateNeed(valid).ok, true);
-    assert.equal(validateCreateNeed({ ...valid, contact: "" }).ok, false);
+    assert.equal(validateCreateNeed({ ...valid, contact: "" }).ok, true);
     assert.equal(validateCreateNeed({ ...valid, contact: "1234" }).ok, false);
     assert.equal(validateCreateNeed({ ...valid, contact: "1234567" }).ok, true);
-    assert.ok(validateCreateNeed({ ...valid, contact: "" }).errors.some((e) => e.includes("teléfono")));
+    assert.ok(validateCreateNeed({ ...valid, contact: "1234" }).errors.some((e) => e.includes("teléfono")));
   });
 
   it("acepta teléfonos internacionales", () => {
@@ -118,7 +118,7 @@ describe("getDraftValidationErrors", () => {
     });
     assert.ok(errors.some((e) => e.includes("lugar")));
     assert.ok(errors.some((e) => e.includes("descripción")));
-    assert.ok(errors.some((e) => e.toLowerCase().includes("teléfono")));
+    assert.ok(!errors.some((e) => e.toLowerCase().includes("teléfono")));
   });
 
   it("vacío cuando el borrador está listo", () => {
@@ -233,7 +233,7 @@ describe("validateCreateNeed — ofertas (ofrece)", () => {
 });
 
 describe("isDraftReady — formulario cliente", () => {
-  it("requiere lugar, detalle, teléfono y coordenadas", () => {
+  it("requiere lugar, detalle y coordenadas (teléfono opcional)", () => {
     assert.equal(isDraftReady({
       place: "Hospital",
       detail: "Insulina",
@@ -241,13 +241,20 @@ describe("isDraftReady — formulario cliente", () => {
       lat: 10.49,
       lng: -66.9,
     }), true);
-  });
-
-  it("rechaza borrador sin teléfono", () => {
     assert.equal(isDraftReady({
       place: "Hospital",
       detail: "Insulina",
       contact: "",
+      lat: 10.49,
+      lng: -66.9,
+    }), true);
+  });
+
+  it("rechaza borrador con teléfono inválido", () => {
+    assert.equal(isDraftReady({
+      place: "Hospital",
+      detail: "Insulina",
+      contact: "1234",
       lat: 10.49,
       lng: -66.9,
     }), false);

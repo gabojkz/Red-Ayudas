@@ -47,6 +47,16 @@ test("parseJsonBody accepts valid object", async () => {
   assert.equal(result.data.type, "agua");
 });
 
+test("maxBodyBytesForPath allows larger sede registration payloads", async () => {
+  const {
+    maxBodyBytesForPath, MAX_PHOTO_JSON_BYTES, MAX_JSON_BYTES,
+  } = await import("../src/lib/apiSecurity.js");
+  assert.equal(maxBodyBytesForPath("/api/sedes/register"), MAX_JSON_BYTES);
+  assert.equal(maxBodyBytesForPath("/api/sedes/1/photo"), MAX_PHOTO_JSON_BYTES);
+  assert.equal(maxBodyBytesForPath("/api/sedes/1/helpers/2"), MAX_PHOTO_JSON_BYTES);
+  assert.equal(maxBodyBytesForPath("/api/needs"), MAX_JSON_BYTES);
+});
+
 test("validateListNeedsQuery whitelists filters", () => {
   assert.equal(validateListNeedsQuery({ status: "activas", kind: "need" }).ok, true);
   assert.equal(validateListNeedsQuery({ status: "hack" }).ok, false);

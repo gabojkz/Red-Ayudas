@@ -7,9 +7,9 @@ import {
   Link2, ArrowRight, Radio, Zap, Code2, Phone, Globe, PackageCheck, Search,
 } from "lucide-react";
 import Link from "next/link";
+import { asyncHandler } from "@/lib/asyncHandler";
 import { mapLinks } from "@/lib/mapLinks";
 import { ESCOMBROS_EQUIPO, escombrosMetaChips, toggleEquipo, parseEquipos } from "@/lib/escombros";
-import dynamic from "next/dynamic";
 import {
   TYPES, URGENCY, STATUS, KIND, CONN_STATUS, ROLES, OFFER_TYPES, timeAgoLabel,
 } from "@/lib/constants";
@@ -21,7 +21,7 @@ import { isDraftReady, hasDraftLocation, getDraftValidationErrors, isValidPhoneC
 import { MAP_CENTER } from "@/lib/mapLayers";
 import {
   connectionStats, countOrphanNeeds, getMatchCandidates, nextConnectionStatus,
-  nextConnectionLabel, needHasCoverage, buildConnectionsGeoJSON, isActiveConnection,
+  nextConnectionLabel, needHasCoverage, isActiveConnection,
   filterConnectionsBySearch,
   sortConnectionsByNeedUrgency,
 } from "@/lib/connections";
@@ -38,24 +38,15 @@ const TYPE_ICONS = {
   rescate: LifeBuoy, refugio: Home, transporte: Truck, voluntario: HeartHandshake, otros: Package,
 };
 
-const LibreMap = dynamic(() => import("@/components/LibreMap"), {
-  ssr: false,
-  loading: () => (
-    <div className="rda-map-loading">
-      <Loader2 size={28} className="rda-spin" /> Cargando mapa…
-    </div>
-  ),
-});
-
 export default function RedDeAyuda() {
   const [needs, setNeeds] = useState([]);
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTypes, setActiveTypes] = useState(new Set(Object.keys(TYPES)));
-  const [kindFilter, setKindFilter] = useState("todos");
-  const [statusFilter, setStatusFilter] = useState("activas");
-  const [tab, setTab] = useState("mapa");
+  const [activeTypes, setActiveTypes] = useState(() => new Set());
+  const [kindFilter, setKindFilter] = useState(null);
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [tab, setTab] = useState("lista");
   const [selectedId, setSelectedId] = useState(null);
   const [mode, setMode] = useState("view");
   const [draft, setDraft] = useState(null);
@@ -82,7 +73,7 @@ export default function RedDeAyuda() {
     mergeNeeds(list);
   }, [mergeNeeds]);
 
-  const revealOnMap = useCallback((item) => {
+  const revealInList = useCallback((item) => {
     const nextTypes = new Set(activeTypes);
     nextTypes.add(item.type);
     const filtered = filterPosts(needs, {
@@ -95,7 +86,7 @@ export default function RedDeAyuda() {
     setActiveTypes(nextTypes);
     setListPage(findItemPage(filtered, item.id));
     setSelectedId(item.id);
-    setTab("mapa");
+    setTab("lista");
   }, [needs, activeTypes]);
 
   const applyConnections = useCallback((list) => {
@@ -151,10 +142,7 @@ export default function RedDeAyuda() {
   useEffect(() => {
     const view = loadViewState();
     if (view) {
-      setActiveTypes(new Set(view.activeTypes));
-      setStatusFilter(view.statusFilter);
       setSelectedId(view.selectedId);
-      if (view.kindFilter) setKindFilter(view.kindFilter);
       if (view.tab) setTab(view.tab);
       if (view.listPage) setListPage(view.listPage);
     }
@@ -216,10 +204,13 @@ export default function RedDeAyuda() {
     [visible, listPage]
   );
 
-  const boardIds = useMemo(
-    () => new Set(boardPage.items.map((n) => n.id)),
-    [boardPage.items]
-  );
+  const goToPage = useCallback((nextPage) => {
+    const nextBoard = paginateItems(visible, nextPage, BOARD_PAGE_SIZE);
+    setListPage(nextBoard.page);
+    setSelectedId((id) => (
+      id && nextBoard.items.some((n) => n.id === id) ? id : null
+    ));
+  }, [visible]);
 
   const stats = useMemo(() => connectionStats(needs, connections), [needs, connections]);
   const orphanNeeds = useMemo(() => countOrphanNeeds(needs, connections), [needs, connections]);
@@ -229,50 +220,7 @@ export default function RedDeAyuda() {
     return sortConnectionsByNeedUrgency(searched, postsById);
   }, [connections, postsById, connSearch]);
 
-  const connectionsGeoJSON = useMemo(() => {
-    const geo = buildConnectionsGeoJSON(connections, postsById);
-    if (!geo.features?.length) return geo;
-    return {
-      type: "FeatureCollection",
-      features: geo.features.filter((f) => {
-        const conn = connections.find((c) => c.id === f.properties?.id);
-        if (!conn) return false;
-        return boardIds.has(conn.needId) || boardIds.has(conn.offerId);
-      }),
-    };
-  }, [connections, postsById, boardIds]);
-
-  const mapNeeds = useMemo(() =>
-    boardPage.items.map((n) => ({
-      ...n,
-      color: TYPES[n.type].color,
-      kindColor: KIND[n.kind]?.color,
-      typeLabel: TYPES[n.type].label,
-      Icon: TYPE_ICONS[n.type],
-      hasCoverage: needHasCoverage(n.id, connections),
-    })),
-  [boardPage.items, connections]);
-
-  const mapFitKey = useMemo(
-    () => `${boardPage.page}:${boardPage.items.map((n) => n.id).join(",")}`,
-    [boardPage.page, boardPage.items]
-  );
-
-  const goToPage = useCallback((nextPage) => {
-    const nextBoard = paginateItems(visible, nextPage, BOARD_PAGE_SIZE);
-    setListPage(nextBoard.page);
-    setSelectedId((id) => (
-      id && nextBoard.items.some((n) => n.id === id) ? id : null
-    ));
-  }, [visible]);
-
   const selected = needs.find((n) => n.id === selectedId) || null;
-
-  const handleMapClick = (lat, lng) => {
-    if (mode !== "report") return;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    setDraft((d) => ({ ...(d || {}), lat, lng, locationApprox: false }));
-  };
 
   const startReport = () => {
     setSelectedId(null);
@@ -290,7 +238,7 @@ export default function RedDeAyuda() {
       locationApprox: true,
     });
     setMode("report");
-    setTab("mapa");
+    setTab("lista");
   };
 
   const startOfferForNeed = (need) => {
@@ -312,7 +260,7 @@ export default function RedDeAyuda() {
       targetNeedLabel: `${need.place} · ${need.zone}`,
     });
     setMode("report");
-    setTab("mapa");
+    setTab("lista");
   };
 
   const publish = async () => {
@@ -326,7 +274,7 @@ export default function RedDeAyuda() {
     const finishPublish = (need) => {
       fetchGenRef.current++;
       mergeNeeds((prev) => [need, ...prev.filter((n) => n.id !== need.id)]);
-      revealOnMap(need);
+      revealInList(need);
       setMode("view");
       setDraft(null);
     };
@@ -337,7 +285,7 @@ export default function RedDeAyuda() {
         applyNeeds(next);
         setPendingCount(pending);
         setOffline(true);
-        revealOnMap(need);
+        revealInList(need);
         setMode("view");
         setDraft(null);
         return;
@@ -381,7 +329,7 @@ export default function RedDeAyuda() {
           applyNeeds(next);
           setPendingCount(pending);
           setOffline(true);
-          revealOnMap(need);
+          revealInList(need);
           setMode("view");
           setDraft(null);
           setFormError(null);
@@ -478,6 +426,12 @@ export default function RedDeAyuda() {
           <Stat n={stats.activeConns} label="conexiones" accent="#2563EB" />
           <Stat n={stats.delivered} label="entregados" accent="#6B7280" />
         </div>
+        <Link href="/" className="rda-dev-link" title="Necesidades por centro">
+          <PackageCheck size={14} /> Inicio
+        </Link>
+        <Link href="/inventario" className="rda-dev-link" title="Inventario por sede de emergencia">
+          <PackageCheck size={14} /> Inventario
+        </Link>
         <Link href="/recursos" className="rda-dev-link" title="Desaparecidos y otros recursos">
           <Link2 size={14} strokeWidth={2.4} /> Recursos
         </Link>
@@ -487,7 +441,7 @@ export default function RedDeAyuda() {
         <button
           type="button"
           className="rda-cta"
-          onClick={mode === "report" ? publish : startReport}
+          onClick={mode === "report" ? asyncHandler(publish) : startReport}
           disabled={mode === "report" && submitting}
         >
           <Plus size={15} strokeWidth={2.6} />
@@ -502,13 +456,13 @@ export default function RedDeAyuda() {
       {error && (
         <div className="rda-banner-err">
           <AlertTriangle size={14} /> {error}
-          <button type="button" onClick={() => { setError(null); fetchAll(); }}>Reintentar</button>
+          <button type="button" onClick={asyncHandler(() => { setError(null); return fetchAll(); })}>Reintentar</button>
         </div>
       )}
 
       <div className="rda-tabs">
-        <button type="button" className={tab === "mapa" ? "on" : ""} onClick={() => setTab("mapa")}>
-          <MapPin size={13} /> Mapa y tablero
+        <button type="button" className={tab === "lista" ? "on" : ""} onClick={() => setTab("lista")}>
+          <Package size={13} /> Reportes
         </button>
         <button type="button" className={tab === "conexiones" ? "on" : ""} onClick={() => setTab("conexiones")}>
           <Link2 size={13} /> Conexiones
@@ -521,7 +475,7 @@ export default function RedDeAyuda() {
         )}
       </div>
 
-      {tab === "mapa" ? (
+      {tab === "lista" ? (
         <>
           <div className="rda-filters">
             <div className="rda-seg">
@@ -548,40 +502,8 @@ export default function RedDeAyuda() {
             </div>
           </div>
 
-          <div className="rda-body">
-            <div className="rda-map-col">
-              <div className="rda-map">
-                {loading ? (
-                  <div className="rda-map-loading"><Loader2 size={28} className="rda-spin" /> Cargando…</div>
-                ) : (
-                  <LibreMap
-                    needs={mapNeeds}
-                    connectionsGeoJSON={connectionsGeoJSON}
-                    selectedId={selectedId}
-                    draftLatLng={hasDraftLocation(draft) ? { lat: Number(draft.lat), lng: Number(draft.lng) } : null}
-                    reportMode={mode === "report"}
-                    onMapClick={handleMapClick}
-                    onPinClick={(id) => { setSelectedId(id); setMode("view"); }}
-                    fitBoundsKey={mode === "report" ? null : mapFitKey}
-                  />
-                )}
-                {mode === "report" && (
-                  <div className="rda-map-banner">
-                    {!hasDraftLocation(draft)
-                      ? "Toca el mapa para ubicar el reporte"
-                      : draft?.locationApprox
-                        ? "Ubicación aproximada — toca el mapa para ajustar el punto exacto"
-                        : "Ubicación marcada — toca de nuevo para ajustar"}
-                  </div>
-                )}
-              </div>
-              <p className="rda-note"><AlertTriangle size={11} /> Líneas = conexiones activas · pines tenues = ya tienen cobertura</p>
-              {mode !== "report" && (
-                <BoardPagination boardPage={boardPage} onPageChange={goToPage} />
-              )}
-            </div>
-
-            <aside className="rda-side">
+          <div className="rda-body rda-body-list">
+            <div className="rda-list-col">
               {mode === "report" ? (
                 <ReportForm draft={draft} setDraft={setDraft} onPublish={publish} submitting={submitting}
                   formError={formError}
@@ -597,15 +519,19 @@ export default function RedDeAyuda() {
                       offers={offersList}
                       connections={connections}
                       onClose={() => setSelectedId(null)}
-                      onConnect={handleConnect}
+                      onConnect={asyncHandler(handleConnect)}
                       onOfferHelp={startOfferForNeed}
-                      onAdvanceConn={advanceConnection}
+                      onAdvanceConn={asyncHandler(advanceConnection)}
                     />
                   )}
                   <div className={`rda-list ${selected ? "has-detail" : ""}`}>
                     {loading && <div className="rda-empty">Cargando…</div>}
                     {!loading && boardPage.total === 0 && (
-                      <div className="rda-empty">Sin resultados con estos filtros.</div>
+                      <div className="rda-empty">
+                        {activeTypes.size === 0 || !kindFilter || !statusFilter
+                          ? "Activa filtros arriba (tipo, categoría y estado) para ver reportes."
+                          : "Sin resultados con estos filtros."}
+                      </div>
                     )}
                     {!loading && boardPage.total > 0 && (
                       <BoardPagination boardPage={boardPage} onPageChange={goToPage} />
@@ -616,10 +542,13 @@ export default function RedDeAyuda() {
                         onOfferHelp={startOfferForNeed}
                         onClick={() => setSelectedId(n.id === selectedId ? null : n.id)} />
                     ))}
+                    {!loading && boardPage.total > 0 && (
+                      <BoardPagination boardPage={boardPage} onPageChange={goToPage} />
+                    )}
                   </div>
                 </>
               )}
-            </aside>
+            </div>
           </div>
         </>
       ) : (
@@ -654,8 +583,8 @@ export default function RedDeAyuda() {
           {orphanNeeds > 0 && (
             <div className="rda-orphan-banner">
               <Radio size={14} />
-              <span><b>{orphanNeeds} necesidades abiertas</b> sin oferta conectada. Ve al mapa y conéctalas.</span>
-              <button type="button" className="rda-btn rda-btn-sm rda-btn-outline" onClick={() => setTab("mapa")}>Ir al mapa</button>
+              <span><b>{orphanNeeds} necesidades abiertas</b> sin oferta conectada. Ve a reportes y conéctalas.</span>
+              <button type="button" className="rda-btn rda-btn-sm rda-btn-outline" onClick={() => setTab("lista")}>Ir a reportes</button>
             </div>
           )}
           <div className="rda-conn-grid">
@@ -671,7 +600,7 @@ export default function RedDeAyuda() {
             )}
             {filteredConnections.map((c) => (
               <ConnectionCard key={c.id} conn={c} needs={needsList} offers={offersList}
-                onAdvance={advanceConnection} />
+                onAdvance={asyncHandler(advanceConnection)} />
             ))}
           </div>
         </div>
@@ -683,7 +612,7 @@ export default function RedDeAyuda() {
 function BoardPagination({ boardPage, onPageChange }) {
   if (boardPage.total <= boardPage.pageSize) return null;
   return (
-    <div className="rda-pagination" role="navigation" aria-label="Paginación del mapa">
+    <div className="rda-pagination" role="navigation" aria-label="Paginación del listado">
       <button
         type="button"
         className="rda-page-btn"
@@ -793,7 +722,7 @@ function ConnectionCard({ conn, needs, offers, onAdvance }) {
 
       <div className="rda-conn-footer">
         {next && conn.status !== "entregado" && conn.status !== "cancelado" && (
-          <button type="button" className="rda-conn-btn-primary" onClick={() => onAdvance(conn.id, next)}>
+          <button type="button" className="rda-conn-btn-primary" onClick={asyncHandler(() => onAdvance(conn.id, next))}>
             <Check size={13} strokeWidth={2.4} aria-hidden /> {nextLabel}
           </button>
         )}
@@ -965,7 +894,7 @@ const DetailPanel = React.forwardRef(function DetailPanel(
                   </span>
                   {m.place}
                 </span>
-                <button type="button" className="rda-btn rda-btn-sm rda-btn-blue" onClick={() => onConnect(item, m)}>
+                <button type="button" className="rda-btn rda-btn-sm rda-btn-blue" onClick={asyncHandler(() => onConnect(item, m))}>
                   Conectar
                 </button>
               </div>
@@ -1048,7 +977,6 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, formErro
   };
   const isEscombros = draft.type === "escombros";
   const ready = isDraftReady(draft);
-  const located = hasDraftLocation(draft);
   const blocking = getDraftValidationErrors(draft);
   const formErrRef = useRef(null);
 
@@ -1064,9 +992,7 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, formErro
     setDraft((d) => ({ ...d, role, kind }));
   };
 
-  const handlePublishClick = () => {
-    onPublish();
-  };
+  const handlePublishClick = asyncHandler(onPublish);
 
   return (
     <div className="rda-form">
@@ -1134,20 +1060,16 @@ function ReportForm({ draft, setDraft, onPublish, onCancel, submitting, formErro
               : (draft.kind === "need" ? "Qué se necesita y cuánto" : "Qué tienes disponible y desde dónde")}
             value={draft.detail || ""} onChange={(e) => set("detail", e.target.value)} />
 
-          <label className="rda-label">Teléfono / WhatsApp <span className="rda-req">*</span></label>
+          <label className="rda-label">Teléfono / WhatsApp <span className="rda-opt"> (opcional)</span></label>
           <input className="rda-input" type="tel" inputMode="tel" autoComplete="tel"
             placeholder={PHONE_PLACEHOLDER}
             value={draft.contact || ""} onChange={(e) => set("contact", e.target.value)} />
 
           <div className="rda-loc-row">
-            <label className="rda-label" style={{ margin: 0 }}>Ubicación en el mapa</label>
-            <div className={`rda-loc ${!located ? "empty" : ""}`}>
+            <label className="rda-label" style={{ margin: 0 }}>Ubicación</label>
+            <div className="rda-loc">
               <MapPin size={13} />
-              {!located
-                ? "Toca el mapa para ubicar"
-                : draft.locationApprox
-                  ? `${Number(draft.lat).toFixed(3)}, ${Number(draft.lng).toFixed(3)} (aprox.)`
-                  : `${Number(draft.lat).toFixed(3)}, ${Number(draft.lng).toFixed(3)}`}
+              {String(draft.place ?? "").trim() || "Indica el lugar arriba"}
             </div>
           </div>
 
@@ -1215,6 +1137,9 @@ const CSS = `
 .rda-seg button.on{background:#fff;color:#1A2233;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .rda-chips{display:flex;gap:6px;flex-wrap:wrap}
 .rda-chip{display:inline-flex;align-items:center;gap:4px;border:1.5px solid #DDE1E6;background:#fff;color:#6B7280;border-radius:20px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer}
+.rda-body-list{flex-direction:column;padding:14px 20px}
+.rda-list-col{flex:1;max-width:720px;margin:0 auto;width:100%;display:flex;flex-direction:column;min-height:0}
+.rda-list-col .rda-list{max-height:none;flex:1}
 .rda-body{display:flex;flex:1;min-height:0}
 .rda-map-col{flex:1.5;display:flex;flex-direction:column;padding:14px 8px 14px 20px;min-width:0}
 .rda-map{position:relative;width:100%;aspect-ratio:9/5;border-radius:12px;overflow:hidden;border:1px solid #D8DCE2;min-height:320px}

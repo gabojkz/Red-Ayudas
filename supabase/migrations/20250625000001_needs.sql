@@ -4,7 +4,10 @@
 CREATE TABLE IF NOT EXISTS needs (
   id            BIGSERIAL PRIMARY KEY,
   kind          TEXT NOT NULL DEFAULT 'need' CHECK (kind IN ('need', 'offer')),
-  type          TEXT NOT NULL CHECK (type IN ('medicamentos', 'agua', 'alimentos', 'rescate', 'refugio', 'transporte', 'voluntario', 'otros')),
+  type          TEXT NOT NULL CHECK (type IN (
+    'medicamentos', 'agua', 'alimentos', 'rescate', 'refugio',
+    'transporte', 'voluntario', 'escombros', 'otros'
+  )),
   urgency       TEXT NOT NULL CHECK (urgency IN ('critica', 'alta', 'media')),
   status        TEXT NOT NULL DEFAULT 'abierto' CHECK (status IN ('abierto', 'en_camino', 'cubierto')),
   place         TEXT NOT NULL,

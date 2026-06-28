@@ -232,6 +232,29 @@
   margin-bottom: 14px;
 }
 
+.recursos-contribute {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.recursos-contribute-links {
+  margin: 0 0 14px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.recursos-contribute-links a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.recursos-contribute-links a:hover {
+  text-decoration: underline;
+}
+
 .recursos-btn {
   display: inline-flex;
   align-items: center;

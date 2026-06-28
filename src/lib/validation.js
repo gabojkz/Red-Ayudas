@@ -35,8 +35,9 @@ export function validateCreateNeed(body) {
   if (!urgency || !URGENCY[urgency]) errors.push("urgency inválida");
   if (!place || typeof place !== "string" || !sanitizeText(place)) errors.push("place requerido");
   if (!detail || typeof detail !== "string" || !sanitizeText(detail)) errors.push("detail requerido");
-  if (!isValidPhoneContact(contact)) {
-    errors.push("teléfono requerido (mínimo 5 dígitos)");
+  const contactText = typeof contact === "string" ? contact.trim() : "";
+  if (contactText && !isValidPhoneContact(contactText)) {
+    errors.push("teléfono inválido (mínimo 5 dígitos si lo indicas)");
   }
 
   const latNum = Number(lat);
@@ -65,7 +66,7 @@ export function validateCreateNeed(body) {
       urgency,
       place: sanitizeText(place, 200),
       detail: sanitizeText(detail, 2000),
-      contact: sanitizeText(contact, 200),
+      contact: contactText ? sanitizeText(contact, 200) : "",
       lat: latNum,
       lng: lngNum,
       zone: nearestZone(latNum, lngNum),
@@ -114,8 +115,9 @@ export function getDraftValidationErrors(draft) {
   }
   if (!String(draft.place ?? "").trim()) errors.push("Indica el lugar.");
   if (!String(draft.detail ?? "").trim()) errors.push("Indica la descripción.");
-  if (!isValidPhoneContact(draft.contact)) {
-    errors.push("Indica un teléfono de contacto (mínimo 5 dígitos).");
+  const contactText = String(draft.contact ?? "").trim();
+  if (contactText && !isValidPhoneContact(contactText)) {
+    errors.push("El teléfono indicado no es válido (mínimo 5 dígitos).");
   }
   if (!hasDraftLocation(draft)) errors.push("Marca la ubicación tocando el mapa.");
   if (

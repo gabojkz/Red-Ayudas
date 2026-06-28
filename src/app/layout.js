@@ -1,6 +1,21 @@
 import SerwistProvider from "@/components/SerwistProvider";
 import { getSiteUrl, siteConfig } from "@/lib/seo";
+import { Archivo, Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-archivo",
+  display: "swap",
+});
 
 export const metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -61,8 +76,12 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang={siteConfig.language}>
-      <body>
+    <html
+      lang={siteConfig.language}
+      className={`${inter.variable} ${archivo.variable}`}
+      suppressHydrationWarning
+    >
+      <body className={inter.className}>
         <SerwistProvider>{children}</SerwistProvider>
       </body>
     </html>

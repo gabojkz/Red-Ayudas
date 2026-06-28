@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { maxBodyBytesForPath } from "@/lib/apiSecurity";
 
 const WRITE_LIMIT = 30;
 const WRITE_WINDOW_MS = 60_000;
-const MAX_BODY_BYTES = 32_768;
 const buckets = new Map();
 
 function clientIp(request) {
@@ -50,7 +50,8 @@ export function middleware(request) {
     }
 
     const contentLength = Number(request.headers.get("content-length") || 0);
-    if (contentLength > MAX_BODY_BYTES) {
+    const maxBody = maxBodyBytesForPath(request.nextUrl.pathname);
+    if (contentLength > maxBody) {
       return NextResponse.json({ error: "Cuerpo demasiado grande" }, { status: 413 });
     }
   }

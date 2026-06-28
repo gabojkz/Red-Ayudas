@@ -56,11 +56,8 @@ export function getCachedAt() {
 
 export function saveViewState(state) {
   write(KEYS.view, {
-    activeTypes: [...state.activeTypes],
-    statusFilter: state.statusFilter,
     selectedId: state.selectedId,
-    kindFilter: state.kindFilter || "todos",
-    tab: state.tab || "mapa",
+    tab: state.tab || "lista",
     listPage: state.listPage || 1,
   });
 }

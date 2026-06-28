@@ -1,7 +1,21 @@
 import { TYPES, KIND } from "./constants.js";
+import { stockStatus, sedeOperationalStatus, bedsStatus } from "./stockConstants.js";
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
+
+const STOCK_STATUS_FEED = {
+  Agotado: "agotado",
+  Bajo: "bajo",
+  Disponible: "disponible",
+};
+
+const BEDS_STATUS_FEED = {
+  "Sin camas": "sin_camas",
+  Lleno: "lleno",
+  "Casi lleno": "casi_lleno",
+  Disponible: "disponible",
+};
 
 /**
  * @typedef {Object} FeedItem
@@ -16,6 +30,31 @@ const MAX_LIMIT = 500;
  * @property {number} lat
  * @property {number} lng
  * @property {string} publishedAt - ISO timestamp
+ */
+
+/**
+ * @typedef {Object} FeedStockItem
+ * @property {string} cat
+ * @property {string} nombre
+ * @property {number} cantidad
+ * @property {string} unidad
+ * @property {'agotado'|'bajo'|'disponible'} status
+ * @property {string} updatedAt - ISO timestamp
+ */
+
+/**
+ * @typedef {Object} FeedCentro
+ * @property {string} slug
+ * @property {string} nombre
+ * @property {string} zona
+ * @property {number|null} lat
+ * @property {number|null} lng
+ * @property {string|null} contacto
+ * @property {number} camasTotal
+ * @property {number} camasLibres
+ * @property {'sin_camas'|'lleno'|'casi_lleno'|'disponible'} bedsStatus
+ * @property {'operativo'|'atencion'|'critico'} operationalStatus
+ * @property {FeedStockItem[]} stock
  */
 
 export function validateFeedQuery({ kind, type, limit } = {}) {
@@ -60,10 +99,47 @@ export function toFeedItem(need) {
   };
 }
 
-export function buildFeed(needs) {
+/** Public stock line for a centro — no internal ids or thresholds. */
+export function toFeedStockItem(item) {
+  const st = stockStatus(item);
+  return {
+    cat: item.cat,
+    nombre: item.nombre,
+    cantidad: item.cantidad,
+    unidad: item.unidad,
+    status: STOCK_STATUS_FEED[st.key] || st.key.toLowerCase(),
+    updatedAt: item.updatedAt,
+  };
+}
+
+/** Public centro with inventory for GET /api/feed. */
+export function toFeedCentro(sede, stock = []) {
+  const op = sedeOperationalStatus(sede, stock);
+  const beds = bedsStatus(sede);
+  return {
+    slug: sede.slug,
+    nombre: sede.nombre,
+    zona: sede.zona,
+    lat: sede.lat,
+    lng: sede.lng,
+    contacto: sede.contacto || null,
+    camasTotal: sede.camasTotal ?? 0,
+    camasLibres: sede.camasDisponibles ?? Math.max(0, (sede.camasTotal ?? 0) - (sede.camasOcupadas ?? 0)),
+    bedsStatus: BEDS_STATUS_FEED[beds.key] || beds.key.toLowerCase().replace(/\s+/g, "_"),
+    operationalStatus: op.key,
+    stock: stock.map(toFeedStockItem),
+  };
+}
+
+export function buildFeed(needs, sedesWithStock = []) {
+  const centros = sedesWithStock.map(({ sede, stock }) => toFeedCentro(sede, stock));
   return {
     updatedAt: new Date().toISOString(),
     count: needs.length,
     items: needs.map(toFeedItem),
+    centros: {
+      count: centros.length,
+      items: centros,
+    },
   };
 }

@@ -8,6 +8,7 @@ import { comparePostsByPriority } from "./priority.js";
  */
 export function filterPosts(posts, { activeTypes, kindFilter, statusFilter }) {
   const types = activeTypes instanceof Set ? activeTypes : new Set(activeTypes);
+  if (types.size === 0 || !kindFilter || !statusFilter) return [];
 
   return posts
     .filter((n) => kindFilter === "todos" || n.kind === kindFilter)

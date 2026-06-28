@@ -6,7 +6,7 @@ import { createPgPool, getDatabaseUrl, loadEnv } from "./env.mjs";
 
 loadEnv();
 
-const seedFile = join(dirname(fileURLToPath(import.meta.url)), "../supabase/seeds/dev.sql");
+const seedsDir = join(dirname(fileURLToPath(import.meta.url)), "../supabase/seeds");
 
 async function seed() {
   const url = getDatabaseUrl();
@@ -16,12 +16,15 @@ async function seed() {
   }
 
   const pool = createPgPool(pg.Pool, url);
-  const sql = readFileSync(seedFile, "utf8");
 
   try {
-    await pool.query(sql);
+    for (const file of ["dev.sql", "stock.sql"]) {
+      const sql = readFileSync(join(seedsDir, file), "utf8");
+      await pool.query(sql);
+    }
     const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM needs");
-    console.log(`✓ Seed aplicado — ${rows[0].n} reportes de prueba.`);
+    const { rows: sedes } = await pool.query("SELECT COUNT(*)::int AS n FROM sedes");
+    console.log(`✓ Seed aplicado — ${rows[0].n} reportes, ${sedes[0].n} sedes.`);
   } finally {
     await pool.end();
   }

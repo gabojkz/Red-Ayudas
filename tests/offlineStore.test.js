@@ -32,19 +32,21 @@ describe("offlineStore — caché entre sesiones/dispositivos", () => {
     assert.ok(getCachedAt());
   });
 
-  it("restaura filtros y vista (pide/ofrece, tab)", () => {
+  it("persiste tab y selección (filtros no se guardan)", () => {
     saveViewState({
       activeTypes: new Set(["agua", "transporte"]),
       statusFilter: "activas",
       selectedId: 3,
       kindFilter: "offer",
       tab: "conexiones",
+      listPage: 2,
     });
     const view = loadViewState();
-    assert.deepEqual(view.activeTypes, ["agua", "transporte"]);
-    assert.equal(view.kindFilter, "offer");
     assert.equal(view.tab, "conexiones");
     assert.equal(view.selectedId, 3);
+    assert.equal(view.listPage, 2);
+    assert.equal(view.activeTypes, undefined);
+    assert.equal(view.kindFilter, undefined);
   });
 
   it("tolera JSON corrupto en localStorage sin romper la app", () => {

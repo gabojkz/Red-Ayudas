@@ -12,6 +12,19 @@ const posts = [
 ];
 
 describe("filterPosts", () => {
+  it("sin filtros activos no muestra nada", () => {
+    assert.deepEqual(filterPosts(posts, {
+      activeTypes: new Set(),
+      kindFilter: null,
+      statusFilter: null,
+    }), []);
+    assert.deepEqual(filterPosts(posts, {
+      activeTypes: new Set(["agua"]),
+      kindFilter: null,
+      statusFilter: "activas",
+    }), []);
+  });
+
   it("muestra solo pide cuando el filtro es need", () => {
     const out = filterPosts(posts, {
       activeTypes: new Set(["agua", "medicamentos", "transporte", "voluntario"]),

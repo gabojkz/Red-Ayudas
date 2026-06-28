@@ -117,8 +117,8 @@ export default function LibreMap({
   onPinClick,
   fitBoundsKey,
 }) {
-  const [showZones, setShowZones] = useState(true);
-  const [showFacilities, setShowFacilities] = useState(true);
+  const [showZones, setShowZones] = useState(false);
+  const [showFacilities, setShowFacilities] = useState(false);
   const [selectedFacility, setSelectedFacility] = useState(null);
   const mapRef = useRef(null);
 

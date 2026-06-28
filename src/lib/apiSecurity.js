@@ -1,6 +1,18 @@
 /** @module apiSecurity */
 
 export const MAX_JSON_BYTES = 32_768;
+/** Registro de sede con fotos en base64 (centro + trabajadores). */
+export const MAX_MEDIA_JSON_BYTES = 1_572_864;
+/** Un ayudante con foto en base64. */
+export const MAX_PHOTO_JSON_BYTES = 262_144;
+
+export function maxBodyBytesForPath(pathname) {
+  if (pathname === "/api/sedes/register") return MAX_JSON_BYTES;
+  if (/^\/api\/sedes\/[^/]+\/photo$/.test(pathname)) return MAX_PHOTO_JSON_BYTES;
+  if (/^\/api\/sedes\/[^/]+\/helpers\/[^/]+$/.test(pathname)) return MAX_PHOTO_JSON_BYTES;
+  if (/^\/api\/sedes\/[^/]+\/helpers$/.test(pathname)) return MAX_PHOTO_JSON_BYTES;
+  return MAX_JSON_BYTES;
+}
 
 /**
  * Parse JSON body with size limits and plain-object guard.

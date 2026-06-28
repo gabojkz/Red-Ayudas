@@ -61,5 +61,9 @@ export const THIS_PROJECT = {
   author: {
     name: "Gabriel Zapata",
     profileUrl: "https://github.com/gabojkz",
+    instagramUrl: "https://www.instagram.com/gabojkz/",
+    instagramLabel: "@gabojkz",
   },
+  contribute:
+    "¿Quieres colaborar? Sube un pull request en GitHub si tienes buenas ideas o si falta algo que deberíamos incluir. Si necesitas hablar conmigo directamente, escríbeme por Instagram.",
 };
